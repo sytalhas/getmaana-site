@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maana: Essential Quranic Words</title>
+<meta name="description" content="910 words, 80% of the Quran. Understand the words you already recite, a few minutes a day.">
+<link rel="canonical" href="https://getmaana.com/">
+<meta name="theme-color" content="#F8F3EA">
+<meta name="apple-itunes-app" content="app-id=6817107338">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Maana">
+<meta property="og:title" content="Maana: Essential Quranic Words">
+<meta property="og:description" content="910 words, 80% of the Quran. Understand the words you already recite, a few minutes a day.">
+<meta property="og:url" content="https://getmaana.com/">
+<meta property="og:image" content="https://getmaana.com/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Al-Fātiḥah with the words you know highlighted in green">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Nunito:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body class="home">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="/"><img src="/assets/icon-192.png" alt="" width="36" height="36"><span>Maana</span></a>
+    <nav aria-label="Site"><a href="/support/">Support</a></nav>
+  </div>
+</header>
+<main id="main">
+<section class="hero wrap">
+  <div class="hero-copy">
+    <img class="hero-icon" src="/assets/icon-192.png" alt="" width="72" height="72">
+    <h1>Maana</h1>
+    <p class="subtitle">910 words, 80% of the Quran</p>
+    <p class="promise">Understand the words you already recite, a few minutes a day.</p>
+    <div class="cta">
+      <a class="store-button" href="https://apps.apple.com/app/id6817107338">Get Maana on the App Store</a>
+      <p class="fine">Free to start. iPhone.</p>
+    </div>
+  </div>
+  <figure class="film">
+    <video autoplay muted loop playsinline preload="metadata"
+           poster="/assets/maana-hero-poster.jpg" width="1280" height="720"
+           aria-label="Al-Fātiḥah on a page. The words you already know light up in green, one by one.">
+      <source src="/assets/maana-hero.mp4" type="video/mp4">
+    </video>
+    <button class="film-toggle" type="button" aria-pressed="false">Pause film</button>
+  </figure>
+</section>
+
+<section class="idea wrap">
+  <p class="lede">The words you’ve said your whole life, <em>finally understood.</em></p>
+  <ul class="points">
+    <li><h2>Start with your salah</h2><p>Begin with Al-Fātiḥah and the short surahs of Juz ‘Amma. The words you recite every day come first.</p></li>
+    <li><h2>One word at a time</h2><p>Each card gives a word’s meaning, its root and an example ayah. Spaced review brings it back just before you forget.</p></li>
+    <li><h2>910 words, 80% of the Quran</h2><p>The 910 most frequent words make up about 80% of the words in the Quran. A few minutes a day is enough.</p></li>
+  </ul>
+</section>
+
+<section class="shots wrap" aria-label="Screenshots">
+  <figure>
+    <img src="/assets/shots/home_light.jpg" width="600" height="1304" loading="lazy"
+         alt="Maana home screen: 7% of the words on a page recognised, today’s ayah from Al-Kawthar, and a Review now button.">
+    <figcaption>See how much of a page you already understand.</figcaption>
+  </figure>
+  <figure>
+    <img src="/assets/shots/hygiene_review_card.jpg" width="600" height="1300" loading="lazy"
+         alt="A review card for the word inna, meaning indeed, with its 1,682 occurrences and an example verse.">
+    <figcaption>Every word with its meaning and a real ayah.</figcaption>
+  </figure>
+  <figure>
+    <img src="/assets/shots/sight_light.jpg" width="600" height="1304" loading="lazy"
+         alt="In your sight: Al-Kawthar, 40% known, with the known words highlighted inside each ayah.">
+    <figcaption>Watch the words you’ve learned light up in the Quran.</figcaption>
+  </figure>
+</section>
+
+<section class="closing wrap">
+  <p>Free to start with 9 surahs, including Al-Fātiḥah.</p>
+  <a class="store-button" href="https://apps.apple.com/app/id6817107338">Get Maana on the App Store</a>
+</section>
+
+<script>
+(function () {
+  var v = document.querySelector('.film video'), b = document.querySelector('.film-toggle');
+  if (!v || !b) return;
+  function sync() { var p = v.paused; b.textContent = p ? 'Play film' : 'Pause film'; b.setAttribute('aria-pressed', p ? 'true' : 'false'); }
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); }
+  b.addEventListener('click', function () { if (v.paused) v.play(); else v.pause(); });
+  v.addEventListener('play', sync); v.addEventListener('pause', sync); sync();
+})();
+</script>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <nav aria-label="Footer">
+      <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
+      <a href="/support/">Support</a>
+      <a href="/delete-account/">Delete account</a>
+    </nav>
+    <p>© 2026 Qordova Inc. · <a href="mailto:support@getmaana.com">support@getmaana.com</a></p>
+  </div>
+</footer>
+</body>
+</html>

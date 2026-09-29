@@ -1,0 +1,63 @@
+<section class="hero wrap">
+  <div class="hero-copy">
+    <img class="hero-icon" src="/assets/icon-192.png" alt="" width="72" height="72">
+    <h1>{{app_name}}</h1>
+    <p class="subtitle">{{subtitle}}</p>
+    <p class="promise">{{promise}}</p>
+    <div class="cta">
+      <a class="store-button" href="{{app_store_url}}">Get Maana on the App Store</a>
+      <p class="fine">Free to start. iPhone.</p>
+    </div>
+  </div>
+  <figure class="film">
+    <video autoplay muted loop playsinline preload="metadata"
+           poster="/assets/maana-hero-poster.jpg" width="1280" height="720"
+           aria-label="Al-Fātiḥah on a page. The words you already know light up in green, one by one.">
+      <source src="/assets/maana-hero.mp4" type="video/mp4">
+    </video>
+    <button class="film-toggle" type="button" aria-pressed="false">Pause film</button>
+  </figure>
+</section>
+
+<section class="idea wrap">
+  <p class="lede">The words you’ve said your whole life, <em>finally understood.</em></p>
+  <ul class="points">
+    <li><h2>Start with your salah</h2><p>Begin with Al-Fātiḥah and the short surahs of Juz ‘Amma. The words you recite every day come first.</p></li>
+    <li><h2>One word at a time</h2><p>Each card gives a word’s meaning, its root and an example ayah. Spaced review brings it back just before you forget.</p></li>
+    <li><h2>910 words, 80% of the Quran</h2><p>The 910 most frequent words make up about 80% of the words in the Quran. A few minutes a day is enough.</p></li>
+  </ul>
+</section>
+
+<section class="shots wrap" aria-label="Screenshots">
+  <figure>
+    <img src="/assets/shots/home_light.jpg" width="600" height="1304" loading="lazy"
+         alt="Maana home screen: 7% of the words on a page recognised, today’s ayah from Al-Kawthar, and a Review now button.">
+    <figcaption>See how much of a page you already understand.</figcaption>
+  </figure>
+  <figure>
+    <img src="/assets/shots/hygiene_review_card.jpg" width="600" height="1300" loading="lazy"
+         alt="A review card for the word inna, meaning indeed, with its 1,682 occurrences and an example verse.">
+    <figcaption>Every word with its meaning and a real ayah.</figcaption>
+  </figure>
+  <figure>
+    <img src="/assets/shots/sight_light.jpg" width="600" height="1304" loading="lazy"
+         alt="In your sight: Al-Kawthar, 40% known, with the known words highlighted inside each ayah.">
+    <figcaption>Watch the words you’ve learned light up in the Quran.</figcaption>
+  </figure>
+</section>
+
+<section class="closing wrap">
+  <p>Free to start with 9 surahs, including Al-Fātiḥah.</p>
+  <a class="store-button" href="{{app_store_url}}">Get Maana on the App Store</a>
+</section>
+
+<script>
+(function () {
+  var v = document.querySelector('.film video'), b = document.querySelector('.film-toggle');
+  if (!v || !b) return;
+  function sync() { var p = v.paused; b.textContent = p ? 'Play film' : 'Pause film'; b.setAttribute('aria-pressed', p ? 'true' : 'false'); }
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); }
+  b.addEventListener('click', function () { if (v.paused) v.play(); else v.pause(); });
+  v.addEventListener('play', sync); v.addEventListener('pause', sync); sync();
+})();
+</script>
