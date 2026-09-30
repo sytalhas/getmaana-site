@@ -91,6 +91,40 @@ export function render(root) {
     });
   }
 
+  // Instagram API with Instagram Login: connects Instagram with no Facebook Page.
+  function connectIgOnly() {
+    return run("connect:meta-ig", async () => {
+      const { url } = await api("action/instagram/oauth_start_ig", {});
+      if (!url) throw new Error("No sign-in URL came back");
+      location.href = url;
+    });
+  }
+
+  function igOnlyBlock(alt) {
+    const key = "meta-ig";
+    const igLogin = conns("instagram").some((c) => c.info?.token_kind === "ig_login" || c.info?.api_host === "graph.instagram.com");
+    // Open by default until Meta is connected: it is the quickest route when no Facebook Page exists.
+    const metaConnected = ["instagram", "facebook", "meta_ads"].some((p) => conns(p).length);
+    const open = S.open[key] ?? (igLogin || !metaConnected || alt.fields.some((f) => f.source));
+    const busy = S.busy.has(`connect:${key}`);
+    return h("details.setup-alt", {
+      open,
+      ontoggle: (e) => { S.open[key] = e.target.open; },
+      style: { borderTop: "1px solid var(--line)", paddingTop: "10px" },
+    },
+      h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, "No Facebook Page? Connect Instagram only"),
+      h("div.stack", { style: { marginTop: "8px" } },
+        h("p.small.muted", { style: { margin: 0 } },
+          `${alt.title}. Publishes reels (trial reels too) and reads insights. Facebook and Meta Ads are not included. About ${alt.minutes} min.`),
+        setupPanel({ key }, alt, false),
+        alt.ready
+          ? h("div.row",
+            h("button.btn.coral", { disabled: busy, onclick: connectIgOnly },
+              busy ? "Opening" : igLogin ? "Reconnect with Instagram" : "Connect with Instagram"),
+            h("span.hint", "Sign in with the Maana Instagram account."))
+          : h("span.hint", "Save the Instagram app ID and secret to turn on Connect with Instagram.")));
+  }
+
   function checkNow(p) {
     return run(`health:${p}`, async () => {
       const out = await api(`health/${p}`, {});
@@ -227,7 +261,10 @@ export function render(root) {
         h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, "Policy limits"),
         h("ul.small", { style: { margin: "4px 0 0", paddingLeft: "18px" } }, limits.map((l) => h("li", l)))) : null,
 
-      setup && ready ? setupPanel(cd, setup, true) : null);
+      setup && ready ? setupPanel(cd, setup, true) : null,
+
+      // Alternative: Instagram only, no Facebook Page (Meta card, owner only)
+      owner && a?.setupAlt ? igOnlyBlock(a.setupAlt) : null);
   }
 
   function renderAll() {
