@@ -1,38 +1,42 @@
-// Connections: one card per platform with its health, token expiry, policy
-// limits and setup note. Owners connect (OAuth or from function secrets),
-// check health now, and disconnect. Tokens never reach the browser.
+// Connections: one card per platform app. Meta is one card because one
+// Facebook login connects Instagram, Facebook and Meta Ads together.
+//
+// Each card walks the owner through three states:
+//   1. Set up: numbered steps, values to copy, and boxes for the app keys
+//      (saved server-side in Vault; the browser only learns "saved").
+//   2. Connect: one tap (OAuth, or keys for App Store Connect).
+//   3. Connected: accounts, token expiry, health, limits.
 
 import { supa, api } from "../supa.js";
 import { store } from "../store.js";
 import { h, clear, toast, confirmAction, fmt, pill, statusKind, PLATFORM_NAMES } from "../ui.js";
 import { limitLines } from "./_reel.js";
 
-const PLATFORMS = ["instagram", "facebook", "meta_ads", "youtube", "tiktok", "asc"];
-
-const WHAT = {
-  instagram: "Publishes reels and pulls reel insights (Instagram Graph API, professional account linked to a Facebook Page).",
-  facebook: "Publishes Page reels and pulls video insights.",
-  meta_ads: "Runs split tests with existing reels as creatives and reports spend, 3-second views and ThruPlays. Spending needs a confirmation every time.",
-  youtube: "Uploads Shorts and pulls YouTube Analytics. Uploads stay private until Google's API audit passes.",
-  tiktok: "Sends videos to the TikTok inbox as drafts and reads video stats. Direct public posting needs TikTok's audit.",
-  asc: "Reads installs by campaign link from App Store Connect analytics reports.",
-};
+const CARDS = [
+  { key: "meta", title: "Meta", platforms: ["instagram", "facebook", "meta_ads"], lead: "instagram",
+    button: "Connect with Facebook",
+    what: "Instagram reels and insights, Facebook Page reels, and Meta Ads split tests. One Facebook login connects all three. Spending always needs a confirmation." },
+  { key: "youtube", title: "YouTube", platforms: ["youtube"], lead: "youtube", button: "Connect with Google",
+    what: "Uploads Shorts and reads YouTube Analytics. Uploads stay private until Google's API audit passes." },
+  { key: "tiktok", title: "TikTok", platforms: ["tiktok"], lead: "tiktok", button: "Connect with TikTok",
+    what: "Sends videos to your TikTok inbox as drafts (you tap Post) and reads stats for public videos." },
+  { key: "asc", title: "App Store", platforms: ["asc"], lead: "asc", button: "Connect",
+    what: "Reads installs per campaign link from App Store Connect analytics, once the app is live." },
+];
 
 export function render(root) {
   const owner = store.isOwner();
-  const S = { adapters: null, adaptersError: null, busy: new Set() };
-  const grid = h("div.grid.cols-2");
+  const S = { adapters: null, adaptersError: null, busy: new Set(), draft: {}, open: {} };
+  const grid = h("div.stack", { style: { gap: "16px" } });
 
   clear(root,
     h("div.view-head", h("div", h("h1", "Connections"),
-      h("p", "Company accounts Studio posts to and reads from. Tokens stay on the server and refresh automatically."))),
-    owner ? null : h("div.notice.info", { style: { marginBottom: "16px" } }, "Only the owner can connect, check or disconnect accounts. You can see their health here."),
+      h("p", "Each platform needs the company's own developer app once. After that, connecting is one tap. Keys and tokens stay on the server."))),
+    owner ? null : h("div.notice.info", { style: { marginBottom: "16px" } },
+      "Only the owner can set up and connect accounts. You can see their health here."),
     grid);
 
-  function conns(p) {
-    return [...store.connections.values()].filter((c) => c.platform === p)
-      .sort((a, b) => (a.status === "disconnected") - (b.status === "disconnected"));
-  }
+  const conns = (p) => [...store.connections.values()].filter((c) => c.platform === p && c.status !== "disconnected");
 
   async function run(key, fn) {
     if (S.busy.has(key)) return;
@@ -48,28 +52,52 @@ export function render(root) {
     }
   }
 
-  function connect(p) {
-    const a = S.adapters?.[p];
-    return run(`connect:${p}`, async () => {
+  async function loadAdapters() {
+    try {
+      S.adapters = await api("adapters", null, "GET");
+      S.adaptersError = null;
+    } catch (e) {
+      S.adaptersError = e.message;
+    }
+    renderAll();
+  }
+
+  function connect(card) {
+    return run(`connect:${card.key}`, async () => {
+      const a = S.adapters?.[card.lead];
       if (a?.oauth) {
-        const { url } = await api(`oauth/${p}/start`);
+        const { url } = await api(`oauth/${card.lead}/start`);
         if (!url) throw new Error("No sign-in URL came back");
         location.href = url;
-      } else if (a?.connectFromSecrets) {
-        const out = await api(`connect/${p}`);
-        toast(out.message ?? `${PLATFORM_NAMES[p]} connected`, "good");
       } else {
-        throw new Error(`${PLATFORM_NAMES[p]} has no connect method yet`);
+        const out = await api(`connect/${card.lead}`);
+        toast(out.message ?? `${card.title} connected`, "good");
       }
     });
   }
 
-  function checkNow(p, conn) {
+  function saveKeys(card, setup) {
+    return run(`save:${card.key}`, async () => {
+      const values = {};
+      for (const f of setup.fields) {
+        const v = (S.draft[f.name] ?? "").trim();
+        if (v) values[f.name] = v;
+      }
+      if (!Object.keys(values).length) throw new Error("Paste at least one value first");
+      await api("config", { values });
+      for (const k of Object.keys(values)) delete S.draft[k];
+      toast("Saved. Keys are stored on the server only.", "good");
+      await loadAdapters();
+    });
+  }
+
+  function checkNow(p) {
     return run(`health:${p}`, async () => {
-      const out = await api(`health/${p}`, conn ? { connection_id: conn.id } : {});
+      const out = await api(`health/${p}`, {});
       const bad = (out.results ?? []).filter((r) => r.status === "error");
       if (!out.results?.length) toast("No account to check yet", "warn");
-      else toast(bad.length ? `${PLATFORM_NAMES[p]}: ${bad[0].last_error ?? "error"}` : `${PLATFORM_NAMES[p]} is healthy`, bad.length ? "bad" : "good");
+      else toast(bad.length ? `${PLATFORM_NAMES[p]}: ${bad[0].last_error ?? "error"}` : `${PLATFORM_NAMES[p]} is healthy`,
+        bad.length ? "bad" : "good");
     });
   }
 
@@ -77,43 +105,64 @@ export function render(root) {
     const ok = await confirmAction(`Disconnect ${PLATFORM_NAMES[conn.platform]}?`, [
       `Account: ${conn.account_name ?? conn.account_id}.`,
       "Studio forgets this connection and its stored token. Scheduled posts for it will fail until you connect again.",
-      "Nothing is deleted on the platform itself. To revoke the app completely, also remove it in the platform's settings.",
+      "Nothing is deleted on the platform itself.",
     ], "Disconnect");
     if (!ok) return;
     const { error } = await supa.from("connections").delete().eq("id", conn.id);
     toast(error ? `Could not disconnect: ${error.message}` : "Disconnected", error ? "bad" : "good");
   }
 
-  function card(p) {
-    const list = conns(p);
-    const a = S.adapters?.[p];
-    const main = list[0] ?? null;
-    const canConnect = !!(a?.oauth || a?.connectFromSecrets);
-    const connectLabel = main && main.status !== "disconnected" ? "Reconnect" : "Connect";
-    const limits = [...limitLines(a?.limits)];
-    return h("section.card.stack",
-      h("div.row.between",
-        h("h2", { style: { margin: 0 } }, PLATFORM_NAMES[p]),
-        main ? pill(main.status, statusKind(main.status)) : pill("not connected", "muted")),
-      h("p.small.muted", { style: { margin: 0 } }, WHAT[p]),
-      list.length ? list.map((c) => account(c)) : null,
-      limits.length || list.some((c) => Object.keys(c.limits ?? {}).length)
-        ? h("div",
-          h("div.field-label", "Policy limits"),
-          h("ul.small", { style: { margin: "4px 0 0", paddingLeft: "18px" } },
-            [...new Set([...limits, ...list.flatMap((c) => limitLines(c.limits))])].map((l) => h("li", l))))
-        : null,
-      a?.setupNote ? h("details", h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, "Setup"),
-        h("p.small", { style: { whiteSpace: "pre-wrap" } }, a.setupNote)) : null,
-      S.adaptersError && !a ? h("p.hint", `Setup notes unavailable: ${S.adaptersError}`) : null,
-      owner ? h("div.row",
-        h("button.btn.primary.small", {
-          disabled: !canConnect || S.busy.has(`connect:${p}`),
-          title: canConnect ? null : "This platform's connector is not available yet",
-          onclick: () => connect(p),
-        }, S.busy.has(`connect:${p}`) ? "Opening" : connectLabel),
-        main ? h("button.btn.small", { disabled: S.busy.has(`health:${p}`), onclick: () => checkNow(p) },
-          S.busy.has(`health:${p}`) ? "Checking" : "Check now") : null) : null);
+  function copyRow(c) {
+    return h("div.copy-row",
+      h("span.small.muted", c.label),
+      h("code", c.value),
+      h("button.btn.small.ghost", {
+        onclick: async (e) => {
+          try {
+            await navigator.clipboard.writeText(c.value);
+            e.target.textContent = "Copied";
+            setTimeout(() => { e.target.textContent = "Copy"; }, 1500);
+          } catch {
+            toast("Copy failed: select the text instead", "warn");
+          }
+        },
+      }, "Copy"));
+  }
+
+  function keyField(f) {
+    const saved = f.source === "studio" ? "Saved in Studio" : f.source === "secret" ? "Set as a server secret" : null;
+    const attrs = {
+      placeholder: saved ? `${saved}. Paste to replace.` : f.optional ? "Optional" : "",
+      value: S.draft[f.name] ?? "",
+      autocomplete: "off",
+      spellcheck: false,
+      oninput: (e) => { S.draft[f.name] = e.target.value; },
+    };
+    const input = f.multiline
+      ? h("textarea", { ...attrs, rows: 4, style: { fontFamily: "ui-monospace, monospace", fontSize: "12px" } })
+      : h("input", { ...attrs, type: f.secret ? "password" : "text" });
+    return h("label.field",
+      h("span.field-label", f.label, saved ? h("span.pill.good", { style: { marginLeft: "8px" } }, "saved") : null),
+      input,
+      f.hint ? h("span.hint", f.hint) : null);
+  }
+
+  function setupPanel(card, setup, collapsed) {
+    const body = h("div.stack",
+      h("ol.setup-steps", setup.steps.map((s) => h("li", s))),
+      setup.copy.length ? h("div.stack", { style: { gap: "6px" } }, setup.copy.map(copyRow)) : null,
+      owner
+        ? h("div.stack",
+          h("div.grid.cols-2", setup.fields.map(keyField)),
+          h("div.row",
+            h("button.btn.primary", { disabled: S.busy.has(`save:${card.key}`), onclick: () => saveKeys(card, setup) },
+              S.busy.has(`save:${card.key}`) ? "Saving" : "Save keys"),
+            h("span.hint", "Stored in Supabase Vault. Studio never shows them again.")))
+        : null);
+    if (!collapsed) return h("div.setup-panel", body);
+    const d = h("details", { open: !!S.open[card.key], ontoggle: (e) => { S.open[card.key] = e.target.open; } },
+      h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, "App keys and setup steps"), body);
+    return d;
   }
 
   function account(c) {
@@ -121,32 +170,74 @@ export function render(root) {
     const days = exp ? Math.round((exp - Date.now()) / 864e5) : null;
     return h("div.stack", { style: { gap: "4px", padding: "10px", background: "var(--paper)", borderRadius: "8px" } },
       h("div.row.between",
-        h("strong", c.account_name ?? c.account_id),
-        list0(c) ? pill(c.status, statusKind(c.status)) : null),
+        h("strong", `${PLATFORM_NAMES[c.platform]}: ${c.account_name ?? c.account_id}`),
+        pill(c.status, statusKind(c.status))),
       h("div.small", "Token: ", exp
         ? h("span", { style: days != null && days < 7 ? { color: "var(--red)", fontWeight: "700" } : null },
           `expires ${fmt.date(c.token_expires_at)} (${days < 0 ? `${-days} days ago` : `in ${days} day${days === 1 ? "" : "s"}`})`)
-        : "no expiry reported"),
+        : "does not expire"),
       h("div.small", `Last checked ${fmt.ago(c.last_checked_at)}`),
-      c.scopes?.length ? h("div.small.muted", `Scopes: ${c.scopes.join(", ")}`) : null,
       c.last_error ? h("div.notice.bad", { style: { fontSize: "13px" } }, c.last_error) : null,
-      owner ? h("div.row.end", h("button.btn.small.danger", { onclick: () => disconnect(c) }, "Disconnect")) : null);
+      owner ? h("div.row.end",
+        h("button.btn.small", { disabled: S.busy.has(`health:${c.platform}`), onclick: () => checkNow(c.platform) },
+          S.busy.has(`health:${c.platform}`) ? "Checking" : "Check now"),
+        h("button.btn.small.danger", { onclick: () => disconnect(c) }, "Disconnect")) : null);
   }
 
-  // Show a per-account pill only when a platform has more than one account.
-  function list0(c) {
-    return conns(c.platform).length > 1;
+  function card(cd) {
+    const a = S.adapters?.[cd.lead];
+    const setup = a?.setup;
+    const accounts = cd.platforms.flatMap(conns);
+    const connected = accounts.length > 0;
+    const ready = !!setup?.ready;
+    const missing = cd.platforms.filter((p) => !conns(p).length);
+    const limits = [...new Set(cd.platforms.flatMap((p) => limitLines(S.adapters?.[p]?.limits)))];
+
+    let status;
+    if (connected) status = pill(missing.length ? "partly connected" : "connected", missing.length ? "warn" : "good");
+    else if (ready) status = pill("ready to connect", "info");
+    else status = pill("set up needed", "muted");
+
+    return h("section.card.stack",
+      h("div.row.between",
+        h("h2", { style: { margin: 0 } }, cd.title),
+        status),
+      h("p.small.muted", { style: { margin: 0 } }, cd.what),
+
+      !S.adapters && !S.adaptersError ? h("p.hint", "Loading setup") : null,
+      S.adaptersError ? h("div.notice.bad", `Could not load setup: ${S.adaptersError}`) : null,
+
+      // 1. Set up (open until the keys are in)
+      setup && !ready ? h("div.stack",
+        h("h3", { style: { margin: "6px 0 0" } }, `One-time setup (about ${setup.minutes} min)`),
+        setupPanel(cd, setup, false)) : null,
+
+      // 2. Connect
+      setup && ready && owner ? h("div.row",
+        h("button.btn.coral", { disabled: S.busy.has(`connect:${cd.key}`), onclick: () => connect(cd) },
+          S.busy.has(`connect:${cd.key}`) ? "Opening" : connected ? cd.button.replace(/^Connect/, "Reconnect") : cd.button),
+        connected && missing.length
+          ? h("span.hint", `Not connected yet: ${missing.map((p) => PLATFORM_NAMES[p]).join(", ")}. Reconnect and allow every permission.`)
+          : null) : null,
+
+      // 3. Connected accounts
+      accounts.map(account),
+
+      limits.length ? h("details",
+        h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, "Policy limits"),
+        h("ul.small", { style: { margin: "4px 0 0", paddingLeft: "18px" } }, limits.map((l) => h("li", l)))) : null,
+
+      setup && ready ? setupPanel(cd, setup, true) : null);
   }
 
   function renderAll() {
-    clear(grid, PLATFORMS.map(card));
+    // Keep what the owner is typing: only rebuild when no key box has focus.
+    const active = document.activeElement;
+    if (active && grid.contains(active) && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+    clear(grid, CARDS.map(card));
   }
 
   renderAll();
-  api("adapters", null, "GET")
-    .then((a) => { S.adapters = a; })
-    .catch((e) => { S.adaptersError = e.message; })
-    .finally(renderAll);
-
+  loadAdapters();
   return store.on((t) => { if (t === "connections" || t === "*") renderAll(); });
 }
