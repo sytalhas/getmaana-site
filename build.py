@@ -24,6 +24,14 @@ import markdown
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "_src")
 S = json.load(open(os.path.join(ROOT, "site.json"), encoding="utf-8"))
+
+# Google Play badge only when a live listing exists (Google's badge rules
+# forbid linking a badge to nowhere). Until then, say Android is coming.
+if S.get("play_store_url"):
+    S["play_badge"] = ('<a class="store-badge store-badge--play" href="' + S["play_store_url"] + '">'
+                       '<img src="/assets/google-play-badge.png" alt="Get it on Google Play" width="203" height="60"></a>')
+else:
+    S["play_badge"] = '<p class="fine soon">Android: coming soon</p>'
 E = html.escape
 
 PAGES = [  # path, title, description, sitemap priority
@@ -133,7 +141,7 @@ def layout(path, title, desc, main, body_class=""):
 <header class="site-header">
   <div class="wrap bar">
     <a class="brand" href="/"><img src="/assets/icon-192.png" alt="" width="36" height="36"><span>{E(S['app_name'])}</span></a>
-    <nav aria-label="Site"><a href="/support/">Support</a></nav>
+    <nav aria-label="Site"><a href="/support/">Support</a><a class="store-badge store-badge--header" href="{S['app_store_url']}"><img src="/assets/app-store-badge.svg" alt="Download on the App Store" width="120" height="40"></a></nav>
   </div>
 </header>
 <main id="main">

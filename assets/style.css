@@ -34,7 +34,9 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.15; let
 .skip:focus { left: 8px; }
 
 /* header / footer */
-.site-header { border-bottom: 1px solid var(--line); }
+.site-header { border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20;
+  background: rgba(248,243,234,.92); -webkit-backdrop-filter: saturate(1.4) blur(10px); backdrop-filter: saturate(1.4) blur(10px); }
+.site-header nav { display: flex; align-items: center; gap: 16px; }
 .bar { display: flex; align-items: center; justify-content: space-between; min-height: 64px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--navy); text-decoration: none; font: 600 22px/1 var(--serif); }
 .brand img { border-radius: 9px; }
@@ -119,3 +121,17 @@ details > :last-child { margin-bottom: 20px; }
 .film { position: relative; }
 .film-toggle { position: absolute; right: 12px; bottom: 12px; font: 700 13px/1 var(--sans); color: var(--navy); background: rgba(255,253,248,.88); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; cursor: pointer; }
 .film-toggle:hover { background: var(--card); }
+
+/* Official App Store badge (unmodified artwork; Apple's minimum on-screen height is 40px) */
+.store-badge { display: inline-block; line-height: 0; border-radius: 10px; transition: transform .15s, opacity .15s; }
+.store-badge img { display: block; width: auto; }
+.store-badge:hover { transform: translateY(-1px); opacity: .9; }
+.store-badge:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+.store-badge--hero img { height: 60px; }
+.store-badge--header img { height: 40px; }
+@media (max-width: 360px) { .store-badge--header img { height: 40px; } .site-header nav { gap: 10px; } }
+
+.store-badge--play img { height: 60px; }   /* Google's PNG includes its own padding */
+.cta, .closing { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.soon { color: var(--ink-2); }
+.closing .soon, .cta .soon { font: 400 15px/1.4 var(--sans); color: var(--ink-2); margin: 0; }

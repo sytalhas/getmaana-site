@@ -10,7 +10,6 @@
   "apple_eula_url": "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",
   "manage_subscriptions_url": "https://apps.apple.com/account/subscriptions",
   "response_time": "a few days",
-
   "effective_date": "September 29, 2026",
   "postal_address": null,
   "jurisdiction": "the laws of the Province of Manitoba and the federal laws of Canada applicable there",
@@ -20,5 +19,6 @@
   "fonts_fetched_at_runtime": true,
   "min_age": 13,
   "regional_rights": null,
-  "attributions": []
+  "attributions": [],
+  "play_store_url": null
 }
