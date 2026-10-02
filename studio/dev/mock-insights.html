@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Studio insights mock (SAMPLE DATA)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/studio.css">
+  <style>
+    .sample-banner { background: #9B2C22; color: #fff; font-weight: 800; text-align: center; padding: 6px 10px; letter-spacing: .04em; position: sticky; top: 0; z-index: 40; }
+    .mock-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; background: var(--navy); }
+    .mock-nav a { color: #D8DDE8; text-decoration: none; font-weight: 700; padding: 4px 10px; border-radius: 8px; }
+    .mock-nav a.active { background: var(--paper); color: var(--navy); }
+    .mock-nav button { margin-left: auto; }
+    @media (max-width: 860px) { .view { padding: 20px 16px 48px; } }
+  </style>
+  <!--
+    Dev harness for the insight views (dashboard, winning, experiments,
+    calendar). It never talks to Supabase: supa.js is swapped for an in-memory
+    stub through an import map, and the store is filled with SYNTHETIC
+    metrics. ?role=viewer shows the read-only view.
+  -->
+  <script>
+    const mockSupa = `
+      const log = (window.__mockCalls = window.__mockCalls || []);
+      function table(name) {
+        const st = () => window.__store;
+        let op = null, patch = null, id = null;
+        const q = {
+          select() { return q; }, order() { return q; }, range() { return q; },
+          update(p) { op = "update"; patch = p; return q; },
+          insert(p) { op = "insert"; patch = p; return q; },
+          eq(_k, v) { id = v; return q; },
+          async single() {
+            log.push({ table: name, op, id, patch });
+            if (name !== "experiments") return { data: null, error: null };
+            const now = new Date().toISOString();
+            if (op === "insert") {
+              const row = { id: crypto.randomUUID(), created_at: now, updated_at: now, platform_ref: {}, ...patch };
+              return { data: row, error: null };
+            }
+            const cur = st().experiments.get(id);
+            return { data: { ...cur, ...patch, updated_at: now }, error: null };
+          },
+        };
+        return q;
+      }
+      export const supa = {
+        from: table,
+        auth: {
+          async getUser() { return { data: { user: { id: "u-editor" } } }; },
+          async getSession() { return { data: { session: null } }; },
+          onAuthStateChange() {},
+        },
+        rpc: async () => ({ data: null, error: null }),
+        channel() { return { on() { return this; }, subscribe() {} }; },
+        removeChannel() {},
+      };
+      export function setApiWorkspace() {}
+      export async function api(path, body) {
+        log.push({ api: path, body });
+        console.log("[mock api]", path, JSON.stringify(body));
+        if (path === "sync") return { queued: 17 };
+        return { ok: true, message: "(mock) " + path };
+      }`;
+    const url = URL.createObjectURL(new Blob([mockSupa], { type: "text/javascript" }));
+    const im = document.createElement("script");
+    im.type = "importmap";
+    im.textContent = JSON.stringify({ imports: { [new URL("../js/supa.js", location.href).href]: url } });
+    document.currentScript.after(im);
+  </script>
+</head>
+<body>
+  <div class="sample-banner">SAMPLE DATA: synthetic metrics for testing the layout. Not real results.</div>
+  <nav class="mock-nav" id="nav">
+    <a href="#/dashboard" data-view="dashboard">Dashboard</a>
+    <a href="#/winning" data-view="winning">What's winning</a>
+    <a href="#/experiments" data-view="experiments">Experiments</a>
+    <a href="#/calendar" data-view="calendar">Calendar</a>
+    <button class="btn small coral" id="live">Simulate live update</button>
+  </nav>
+  <main class="view" id="view"></main>
+  <div id="toasts" role="status" aria-live="polite"></div>
+
+  <script type="module">
+    import { store } from "../js/store.js";
+    import { h, clear } from "../js/ui.js";
+    window.__store = store;
+
+    // ---- deterministic synthetic data ------------------------------------
+    let seed = 42;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const noise = (s) => (rnd() - 0.5) * 2 * s;
+    const DAY = 864e5;
+    const NOW = Date.now();
+    const iso = (t) => new Date(t).toISOString();
+    const uid = (() => { let n = 0; return (p) => `${p}-${String(++n).padStart(4, "0")}`; })();
+
+    const reels = [];
+    const R = (id, title, batch, o) => reels.push({ id, title, batch, status: "live", ...o,
+      length_bucket: o.length_s < 15 ? "under_15s" : o.length_s < 30 ? "15_30s" : o.length_s < 45 ? "30_45s" : "45s_plus" });
+    const b1 = [["question", "paper", true], ["number", "night", false], ["question", "paper", true], ["statement", "paper", false],
+      ["pov", "night", true], ["myth_bust", "paper", false], ["question", "night", true], ["pattern", "paper", false]];
+    b1.forEach(([hook, look, ar], i) => R(`r${i + 1}`, `Batch 1 reel ${i + 1}`, "batch1", { hook_type: hook, look, arabic_frame0: ar,
+      format: i % 3 === 0 ? "count_along" : "teach_one_word", voice: "none", lead: "aha_first", sound: i % 2 ? "sfx" : "in_app_recitation", length_s: 18 + i * 3 }));
+    for (let i = 1; i <= 8; i++) R(`b0${i}`, `Batch 2 reel ${i}`, "batch2", { status: "shelved", hook_type: pick(["statement", "pov", "number"]),
+      look: "footage", arabic_frame0: i % 3 === 0, format: pick(["story", "before_after"]), voice: "tts", lead: "product_first", sound: "sfx", length_s: 12 + i });
+    for (let i = 1; i <= 4; i++) R(`c${i}`, `Teach one word ${i}`, "batch3", { status: i < 3 ? "live" : "ready", hook_type: "question", look: "footage",
+      arabic_frame0: true, format: "teach_one_word", voice: "tts", lead: "aha_first", sound: "voice", length_s: 32 + i });
+    R("p01", "Al-Fatihah tap test", "playable", { status: "ready", format: "playable", look: "paper", voice: "none", lead: "product_first", sound: "silence", length_s: 30 });
+
+    const posts = [], metrics = new Map(), jobs = [];
+    function truth(reel) {
+      let hook = 0.27 + (reel.arabic_frame0 ? 0.06 : 0) + (reel.hook_type === "question" ? 0.04 : 0) + (reel.batch === "batch2" ? -0.05 : 0) + noise(0.03);
+      let share = 0.007 + (reel.format === "teach_one_word" ? 0.004 : 0) + noise(0.002);
+      return { hook: Math.max(0.08, Math.min(0.7, hook)), share: Math.max(0.001, share), save: 0.01 + noise(0.004),
+        completion: 0.22 + (reel.length_s < 25 ? 0.08 : 0) + noise(0.04), watch: reel.length_s * (0.35 + rnd() * 0.2) };
+    }
+    function addPost(reel, platform, type, daysAgo, extra = {}) {
+      const pub = NOW - daysAgo * DAY - Math.floor(rnd() * 8) * 3600e3;
+      const status = extra.status ?? (daysAgo < 0 ? "scheduled" : "live");
+      const p = { id: uid("post"), reel_id: reel.id, platform, post_type: type, method: extra.method ?? "api", status,
+        scheduled_at: iso(pub), published_at: status === "live" ? iso(pub) : null, created_at: iso(pub - 2 * DAY), updated_at: iso(Math.min(NOW, pub)),
+        caption: `${reel.title}. Free on the App Store.`, experiment_id: extra.experiment_id ?? null, variant_label: extra.variant_label ?? null,
+        platform_url: status === "live" ? "https://www.instagram.com/reel/SAMPLE/" : null, error: extra.error ?? null, last_synced_at: status === "live" ? iso(NOW - 3600e3) : null };
+      posts.push(p);
+      if (status !== "live") return p;
+      const t = truth(reel);
+      const base = (extra.scale ?? 1) * Math.exp(7 + rnd() * 2.6) * (platform === "tiktok" ? 1.6 : platform === "youtube" ? 0.6 : 1);
+      const snaps = [];
+      const days = Math.min(14, Math.floor(daysAgo));
+      for (let d = 0; d <= days; d++) {
+        const f = 1 - Math.exp(-(d + 0.5) / 2.5);
+        const v = Math.round(base * f);
+        const at = iso(pub + d * DAY + 5 * 3600e3);
+        if (Date.parse(at) > NOW) break;
+        const s = { id: uid("snap"), post_id: p.id, captured_at: at };
+        if (platform === "meta_ads") {
+          const imp = Math.round(v * 1.3);
+          Object.assign(s, { source: "meta_ads", impressions: imp, three_s_views: Math.round(imp * t.hook), views: v,
+            thruplays: Math.round(imp * t.hook * (0.38 + noise(0.06))), spend_usd: +(imp * 0.009).toFixed(2),
+            installs: Math.round(imp * 0.0022 * (reel.arabic_frame0 ? 1.3 : 1)), link_clicks: Math.round(imp * 0.011) });
+        } else if (platform === "instagram" || platform === "facebook") {
+          Object.assign(s, { source: platform === "instagram" ? "instagram_insights" : "facebook_video_insights", views: v, reach: Math.round(v * 0.8),
+            skip_rate: platform === "instagram" ? +(1 - t.hook).toFixed(4) : null, shares: Math.round(v * t.share), saves: Math.round(v * t.save),
+            likes: Math.round(v * 0.04), comments: Math.round(v * 0.004), follows: Math.round(v * 0.002), avg_watch_s: +t.watch.toFixed(2),
+            completions: platform === "facebook" ? Math.round(v * t.completion) : null });
+        } else if (platform === "tiktok") {
+          Object.assign(s, { source: "tiktok_video_list", views: v, likes: Math.round(v * 0.05), shares: Math.round(v * t.share * 1.2), comments: Math.round(v * 0.003) });
+        } else {
+          Object.assign(s, { source: "youtube_analytics", views: v, likes: Math.round(v * 0.03), shares: Math.round(v * t.share * 0.5), avg_watch_s: +(t.watch * 0.9).toFixed(2), follows: Math.round(v * 0.001) });
+        }
+        snaps.push(s);
+        if (platform === "instagram" && d === days && d >= 3) snaps.push({ id: uid("snap"), post_id: p.id, captured_at: at, source: "asc_reports", installs: Math.round(v * 0.0016) });
+      }
+      metrics.set(p.id, snaps);
+      jobs.push({ id: uid("job"), kind: "sync", platform, post_id: p.id, status: "done", created_at: iso(NOW - rnd() * 6 * 3600e3), updated_at: iso(NOW - rnd() * 6 * 3600e3) });
+      return p;
+    }
+
+    const byId = Object.fromEntries(reels.map((r) => [r.id, r]));
+    // Organic history over ~11 weeks
+    let d = 76;
+    for (const id of ["r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "b01", "b02", "b03", "b05", "b06", "c1", "c2"]) {
+      const r = byId[id];
+      addPost(r, "instagram", "organic", d);
+      if (rnd() < 0.6) addPost(r, "facebook", "organic", d - 0.2);
+      if (rnd() < 0.7) addPost(r, "tiktok", "organic", d - 0.4);
+      if (rnd() < 0.4) addPost(r, "youtube", "organic", d - 0.5);
+      d -= 4.6 + rnd() * 1.5;
+    }
+    for (const id of ["r1", "r3", "r5", "r4"]) addPost(byId[id], "meta_ads", "paid", 20 - reels.findIndex((r) => r.id === id) % 5, { scale: 2 });
+
+    // Experiments
+    const expA = { id: "exp-hook", name: "Question vs statement opener", hypothesis: "Opening on a question lifts hook rate because it creates an open loop in the first second.",
+      lever: "hook_type", kind: "organic_ab", metric: "hook_rate", min_sample: 6000, sample_unit: "views", status: "running",
+      variants: [{ label: "A", reel_id: "r3" }, { label: "B", reel_id: "r4" }], platform_ref: { notes: "B posted a day late because of Jumu'ah." },
+      starts_at: iso(NOW - 9 * DAY), created_at: iso(NOW - 10 * DAY), updated_at: iso(NOW - 9 * DAY) };
+    const expB = { id: "exp-frame0", name: "Arabic on screen at frame 0 (trial reels)", hypothesis: "Showing the Arabic word at frame 0 stops scrolling Arabic learners.",
+      lever: "arabic_frame0", kind: "ig_trial", metric: "hook_rate", min_sample: 2000, sample_unit: "views", status: "running",
+      variants: [{ label: "Arabic", reel_id: "c1" }, { label: "English", reel_id: "c2" }], platform_ref: {},
+      starts_at: iso(NOW - 6 * DAY), created_at: iso(NOW - 7 * DAY), updated_at: iso(NOW - 6 * DAY) };
+    const expC = { id: "exp-paid", name: "Paid: teach one word vs count-along", hypothesis: "Teach-one-word creatives install more cheaply than count-along.",
+      lever: "format", kind: "meta_split", metric: "cpi", min_sample: 60, sample_unit: "installs", status: "draft", budget_usd: 60,
+      variants: [{ label: "Teach", reel_id: "c1" }, { label: "Count", reel_id: "r1" }], platform_ref: {}, created_at: iso(NOW - 1 * DAY), updated_at: iso(NOW - 1 * DAY) };
+    const expD = { id: "exp-sound", name: "SFX vs in-app recitation", hypothesis: "Recitation from the IG library raises saves.", lever: "sound", kind: "organic_ab",
+      metric: "save_rate", min_sample: 3000, sample_unit: "views", status: "decided", variants: [{ label: "SFX", reel_id: "r2" }, { label: "Recitation", reel_id: "r1" }],
+      platform_ref: {}, decision: "No meaningful difference in saves. Keep recitation cuts for organic only.", decision_variant: null,
+      decided_at: iso(NOW - 20 * DAY), decided_by: "u-owner", created_at: iso(NOW - 40 * DAY), updated_at: iso(NOW - 20 * DAY) };
+    addPost(byId.r3, "instagram", "organic", 8, { experiment_id: expA.id, variant_label: "A", scale: 3.2 });
+    addPost(byId.r4, "instagram", "organic", 7, { experiment_id: expA.id, variant_label: "B", scale: 0.9 });
+    addPost(byId.c1, "instagram", "trial", 5, { experiment_id: expB.id, variant_label: "Arabic", scale: 2.5 });
+    addPost(byId.c2, "instagram", "trial", 5, { experiment_id: expB.id, variant_label: "English", scale: 2.5 });
+    addPost(byId.c2, "instagram", "trial", 3, { experiment_id: expB.id, variant_label: "English", scale: 1 });
+
+    // Upcoming and in-flight
+    addPost(byId.c3, "instagram", "organic", -1.5);
+    addPost(byId.c3, "tiktok", "organic", -1.4, { method: "inbox_draft", status: "scheduled" });
+    addPost(byId.c4, "instagram", "organic", -4);
+    addPost(byId.r6, "instagram", "organic", -8);
+    addPost(byId.r2, "instagram", "organic", 0.2, { method: "manual", status: "awaiting_manual" });
+    addPost(byId.c4, "youtube", "organic", 1, { status: "failed", error: "YouTube quota exceeded (sample)" });
+    posts.push({ id: uid("post"), reel_id: "c4", platform: "facebook", post_type: "organic", method: "api", status: "draft", created_at: iso(NOW - DAY), updated_at: iso(NOW - DAY) });
+    jobs.push({ id: uid("job"), kind: "publish", platform: "youtube", post_id: posts.at(-2).id, status: "failed", last_error: "quotaExceeded (sample)", created_at: iso(NOW - DAY), updated_at: iso(NOW - 0.9 * DAY) });
+    jobs.push({ id: uid("job"), kind: "publish", platform: "instagram", post_id: posts.find((p) => p.status === "scheduled").id, status: "pending", created_at: iso(NOW - 3600e3), updated_at: iso(NOW - 1800e3) });
+
+    // Fill the store (the Maana workspace; levers come from kpi.js defaults)
+    store.wsId = "maana";
+    store.workspace = { id: "maana", name: "Maana", copy: { studio_name: "Maana Studio" }, preflight: { recitation_rules: true }, levers: {} };
+    store.role = new URLSearchParams(location.search).get("role") ?? "editor";
+    store.email = "sample@example.com";
+    for (const r of reels) store.reels.set(r.id, r);
+    for (const p of posts) store.posts.set(p.id, p);
+    for (const [k, v] of metrics) store.metrics.set(k, v);
+    for (const j of jobs) store.jobs.set(j.id, j);
+    for (const e of [expA, expB, expC, expD]) store.experiments.set(e.id, e);
+    store.settings.set("targets", { key: "targets", value: { hook_rate: 0.3, hold_rate: 0.4, cpi: null, d7_retention: null } });
+    store.settings.set("cadence", { key: "cadence", value: { organic_per_week_min: 3, organic_per_week_max: 4 } });
+    store.settings.set("ads_spend_cap", { key: "ads_spend_cap", value: { total_usd: 100, daily_usd: null } });
+    store.members.set("owner@example.com", { email: "owner@example.com", name: "Owner (sample)", role: "owner", user_id: "u-owner" });
+    store.ready = true;
+    store.live = true;
+
+    document.getElementById("live").onclick = () => {
+      const live = [...store.posts.values()].filter((p) => p.status === "live" && p.platform === "instagram");
+      const p = live[Math.floor(Math.random() * live.length)];
+      const list = store.metrics.get(p.id);
+      const last = list.filter((s) => s.source === "instagram_insights").at(-1);
+      list.push({ ...last, id: uid("snap"), captured_at: new Date().toISOString(), views: last.views + 5000, shares: last.shares + 60 });
+      store.posts.set(p.id, { ...p, updated_at: new Date().toISOString(), last_synced_at: new Date().toISOString() });
+      store.emit("metrics_snapshots");
+    };
+
+    // ---- tiny router -----------------------------------------------------
+    let cleanup = null;
+    async function route() {
+      const raw = location.hash.replace(/^#\/?/, "").replace(/^w\/[a-z0-9]+\/?/, "") || "dashboard";
+      const [path, query = ""] = raw.split("?");
+      const [view, ...rest] = path.split("/").filter(Boolean);
+      const known = ["dashboard", "winning", "experiments", "calendar"];
+      document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
+      if (cleanup) { cleanup(); cleanup = null; }
+      const root = document.getElementById("view");
+      if (!known.includes(view)) { clear(root, h("div.notice.info", `#/${raw} belongs to another workstream (not in this mock).`)); return; }
+      clear(root);
+      const mod = await import(`../js/views/${view}.js`);
+      cleanup = (await mod.render(root, { rest, params: Object.fromEntries(new URLSearchParams(query)) })) ?? null;
+      window.__rendered = view + "/" + rest.join("/");
+    }
+    window.addEventListener("hashchange", route);
+    route();
+  </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<!--
+  DEV ONLY: Studio (Maana and Mawadda workspaces) against an in-memory mock backend (dev/mock-supa.js),
+  for visual checks before the database is deployed. The real app.js, store.js
+  and views run unchanged; only js/supa.js is swapped by the import map.
+
+  Serve from the folder that holds both repos so posters and videos load:
+    cd "/Volumes/The Wall/Coding" && python3 -m http.server 8787
+    open http://localhost:8787/getmaana-site/studio/dev/mock.html?role=owner#/w/maana/library
+  role = owner | editor | viewer
+  member = all | maana | mawadda   (workspaces the person belongs to)
+  mawadda = empty                  (a brand-new Mawadda workspace)
+  From a worktree, serve its parent folder instead and adjust the path.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <base href="../">
+  <title>Studio (mock)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/studio.css">
+  <script type="importmap">
+    { "imports": { "./js/supa.js": "./dev/mock-supa.js" } }
+  </script>
+  <style>
+    .mock-banner { position: fixed; bottom: 0; left: 0; z-index: 200; background: #9B2C22; color: #fff; font: 700 11px var(--sans);
+      padding: 3px 8px; border-top-right-radius: 6px; opacity: .85; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="app" aria-live="polite"><div class="boot">Loading Studio</div></div>
+  <div id="toasts" role="status" aria-live="polite"></div>
+  <div class="mock-banner">MOCK DATA</div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
