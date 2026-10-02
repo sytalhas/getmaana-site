@@ -10,17 +10,24 @@ const ROLES = [["owner", "Owner"], ["editor", "Editor"], ["viewer", "Viewer"]];
 
 export function render(root) {
   const owner = store.isOwner();
+  // Maana's numbers come from its STRATEGY.md; other workspaces get neutral hints.
+  const maana = store.wsId === "maana";
   const membersBox = h("div");
   const auditBox = h("div");
   const sections = {};
 
   clear(root,
-    h("div.view-head", h("div", h("h1", "Settings"),
-      h("p", owner ? "Changes apply for the whole team straight away and are recorded in the audit log." : "Only the owner can change these. You can read them."))),
+    h("div.view-head", h("div", h("h1", `${store.brand()} settings`),
+      h("p", owner
+        ? `These apply to ${store.brand()} only. Changes reach the whole ${store.brand()} team straight away and are recorded in the audit log.`
+        : "Only an owner can change these. You can read them."))),
+    !store.settings.size ? h("div.notice.info", { style: { marginBottom: "16px" } },
+      owner ? "No settings saved yet. Fill in the cards below and press Save."
+        : `${store.brand()}'s owner has not saved any settings yet.`) : null,
     h("section.card.stack",
-      h("h2", "Team"),
+      h("h2", `${store.brand()} team`),
       h("p.small.muted", { style: { margin: 0 } },
-        "Owners change everything, editors launch and edit content, viewers read. Add someone by email, then they sign in with a one-time link."),
+        `Roles are per workspace: someone can be an owner of one product and a viewer of another. Owners change everything, editors launch and edit content, viewers read. Add someone by email, then they sign in with a one-time link.`),
       membersBox,
       owner ? addMemberForm() : null),
     h("div.grid.cols-2.section",
@@ -38,7 +45,7 @@ export function render(root) {
 
   async function reloadMembers() {
     // studio.members is not in the Realtime publication, so refresh it here.
-    const { data, error } = await supa.from("members").select("*").order("email");
+    const { data, error } = await supa.from("members").select("*").eq("workspace_id", store.wsId).order("email");
     if (error) return toast(`Could not reload the team: ${error.message}`, "bad");
     store.members.clear();
     for (const m of data) store.members.set(m.email, m);
@@ -66,7 +73,7 @@ export function render(root) {
                 const ok = await confirmAction("Give up owner rights?", [`You (${m.email}) become ${role}. Only another owner can change it back.`], "Change my role");
                 if (!ok) { e.target.value = m.role; return; }
               }
-              const { error } = await supa.from("members").update({ role }).eq("email", m.email);
+              const { error } = await supa.from("members").update({ role }).eq("workspace_id", store.wsId).eq("email", m.email);
               if (error) { e.target.value = m.role; return toast(`Could not change the role: ${error.message}`, "bad"); }
               toast(`${m.email} is now ${role}`, "good");
               reloadMembers();
@@ -89,11 +96,11 @@ export function render(root) {
 
   async function removeMember(m) {
     if (m.role === "owner" && owners() <= 1) return toast("The last owner cannot be removed.", "warn");
-    const ok = await confirmAction(`Remove ${m.email}?`, [
-      "They lose access to Studio straight away. Their past actions stay in the audit log.",
+    const ok = await confirmAction(`Remove ${m.email} from ${store.brand()}?`, [
+      `They lose access to ${store.brand()} straight away (other workspaces are not affected). Their past actions stay in the audit log.`,
     ], "Remove");
     if (!ok) return;
-    const { error } = await supa.from("members").delete().eq("email", m.email);
+    const { error } = await supa.from("members").delete().eq("workspace_id", store.wsId).eq("email", m.email);
     if (error) return toast(`Could not remove: ${error.message}`, "bad");
     toast(`${m.email} removed`, "good");
     reloadMembers();
@@ -113,13 +120,13 @@ export function render(root) {
         if (store.members.has(em)) return toast(`${em} is already on the team`, "warn");
         btn.disabled = true;
         const { error } = await supa.from("members").insert({
-          email: em, name: name.value.trim() || null, role: role.value, created_by: await currentUserId(),
+          workspace_id: store.wsId, email: em, name: name.value.trim() || null, role: role.value, created_by: await currentUserId(),
         });
         btn.disabled = false;
         if (error) return toast(`Could not add: ${error.message}`, "bad");
         email.value = "";
         name.value = "";
-        toast(`${em} added. They can sign in at getmaana.com/studio with that email.`, "good");
+        toast(`${em} added to ${store.brand()}. They can sign in at ${location.host || "getmaana.com"}${location.pathname.replace(/[^/]*$/, "")} with that email.`, "good");
         reloadMembers();
       },
     }, field("Email", email), field("Name", name), field("Role", role), btn);
@@ -146,8 +153,8 @@ export function render(root) {
       const row = store.settings.get(key);
       const value = { ...(row?.value ?? {}), ...patch };
       const { error } = row
-        ? await supa.from("settings").update({ value, updated_at: new Date().toISOString(), updated_by: await currentUserId() }).eq("key", key)
-        : await supa.from("settings").insert({ key, value, updated_by: await currentUserId() });
+        ? await supa.from("settings").update({ value, updated_at: new Date().toISOString(), updated_by: await currentUserId() }).eq("workspace_id", store.wsId).eq("key", key)
+        : await supa.from("settings").insert({ workspace_id: store.wsId, key, value, updated_by: await currentUserId() });
       if (error) { toast(`Could not save: ${error.message}`, "bad"); return false; }
       sec.dirty = false;
       sec.value = null;
@@ -189,9 +196,9 @@ export function render(root) {
     const d7 = numInput(pctIn(v.d7_retention), { min: "0", max: "100", step: "0.1", placeholder: "Not set" });
     return formWrap(sec, [
       h("div.grid.cols-2", { style: { gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" } },
-        field("Hook rate (%)", hook, "3-second views ÷ impressions. 30% is from STRATEGY.md."),
-        field("Hold rate (%)", hold, "40% is from STRATEGY.md."),
-        field("CPI (USD)", cpi, "The owner's to set: the app is free, so there is no revenue benchmark."),
+        field("Hook rate (%)", hook, `3-second views ÷ impressions.${maana ? " 30% is from STRATEGY.md." : " 30% is a sensible start."}`),
+        field("Hold rate (%)", hold, maana ? "40% is from STRATEGY.md." : "40% is a sensible start."),
+        field("CPI (USD)", cpi, maana ? "The owner's to set: the app is free, so there is no revenue benchmark." : "Cost per install the owner is happy to pay."),
         field("Day-7 retention (%)", d7, "The owner's to set.")),
     ], () => {
       const out = { hook_rate: pctOut(hook.value), hold_rate: pctOut(hold.value), cpi: numOut(cpi.value), d7_retention: pctOut(d7.value) };
@@ -224,7 +231,7 @@ export function render(root) {
     return formWrap(sec, [
       h("div.grid.cols-2", { style: { gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" } },
         field("Organic posts per week, at least", min), field("At most", max)),
-      h("p.hint", { style: { margin: 0 } }, "3 to 4 a week is the recommendation in STRATEGY.md."),
+      h("p.hint", { style: { margin: 0 } }, maana ? "3 to 4 a week is the recommendation in STRATEGY.md." : "3 to 4 a week is a steady start."),
     ], () => {
       const a = numOut(min.value);
       const b = numOut(max.value);
@@ -255,7 +262,7 @@ export function render(root) {
       },
     }, "Save token");
     return formWrap(sec, [
-      h("div.small", "App id: ", h("code", v.app_id ?? "6817107338")),
+      h("div.small", "App id: ", h("code", v.app_id ?? store.workspace?.ios_app_id ?? "not set")),
       h("label.row", live, h("span", h("strong", "The app is live on the App Store")),
         h("span.hint", "Campaign links only work once it is.")),
       field("Provider token (pt)", h("div.row", { style: { flexWrap: "nowrap" } }, pt, ptBtn),
@@ -267,7 +274,7 @@ export function render(root) {
 
   // ---- audit log -------------------------------------------------------------
   async function loadAudit() {
-    const { data, error } = await supa.from("audit_log").select("*").order("at", { ascending: false }).limit(100);
+    const { data, error } = await supa.from("audit_log").select("*").eq("workspace_id", store.wsId).order("at", { ascending: false }).limit(100);
     if (error) return clear(auditBox, h("div.notice.bad", `Could not load the audit log: ${error.message}`));
     if (!data.length) return clear(auditBox, empty("Nothing recorded yet."));
     clear(auditBox, h("div.table-wrap", { style: { maxHeight: "520px" } }, h("table.data",

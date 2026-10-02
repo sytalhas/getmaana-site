@@ -2,7 +2,7 @@
 // metric, ranked by effect, with its sample and an honest confidence label.
 
 import { h, clear, fmt, select, field, PLATFORM_NAMES } from "../ui.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { KPI_BY_KEY, LEVERS, WIN_METRICS, buildRows, leverEffects, MIN_POSTS, MIN_DEN } from "../kpi.js";
 import { kpiText, liftText, pText, ensureStyle, valueLabel } from "../charts.js";
 
@@ -10,7 +10,8 @@ const state = { metric: "hook_rate", platform: "", post_type: "" };
 
 const CONF_CLASS = { likely: "conf-likely", suggestive: "conf-suggestive", thin: "muted", unclear: "", untested: "warn" };
 
-const CONFOUND_DIMS = [...LEVERS.map((l) => [l.key, l.label]), ["platform", "Platform"], ["post_type", "Post type"]];
+// Built per call: the levers depend on the open workspace (kpi.setLeverFields).
+const confoundDims = () => [...LEVERS.map((l) => [l.key, l.label]), ["platform", "Platform"], ["post_type", "Post type"]];
 
 /**
  * The strongest other attribute that is over-represented in group A vs the
@@ -21,7 +22,7 @@ function confound(rows, leverKey, value) {
   const B = rows.filter((r) => r[leverKey] != null && String(r[leverKey]) !== value);
   if (!A.length || !B.length) return null;
   let best = null;
-  for (const [key, label] of CONFOUND_DIMS) {
+  for (const [key, label] of confoundDims()) {
     if (key === leverKey) continue;
     const vals = new Set(A.map((r) => r[key]).filter((v) => v != null));
     for (const v of vals) {
@@ -77,7 +78,7 @@ export function render(root) {
     "These are observational comparisons, not experiments: posts differ in more than one lever at once (and in timing, platform and audience), so a lever can look strong because of another one. ",
     "The p-value treats every view as independent, which overstates confidence when views cluster by post. ",
     `Rules: "Too little data" under ${MIN_POSTS} posts or ${MIN_DEN.toLocaleString("en-US")} in the denominator on either side; "Suggestive" at p < 0.1; "Likely real" at p < 0.05 with 5+ posts per side. `,
-    "Confirm anything that matters in ", h("a", { href: "#/experiments" }, "Experiments"), ".");
+    "Confirm anything that matters in ", h("a", { href: href("experiments") }, "Experiments"), ".");
   const body = h("div");
   clear(root, head, filters, caveat, body);
 

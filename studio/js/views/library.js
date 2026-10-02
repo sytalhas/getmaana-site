@@ -2,20 +2,24 @@
 // for the detail/editor modal. Editors can re-import the repo folders.
 
 import { api } from "../supa.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { h, clear, toast, fmt, pill, statusKind, field, select, empty } from "../ui.js";
 import {
-  leverLabel, leverOptions, sortReels, reelPoster, reelVideos, reelPosts, flagText, isBlockingFlag, openReel,
+  leverLabel, leverOptions, sortReels, reelPoster, reelVideos, reelPosts, flagText, isBlockingFlag, openReel, choiceLevers,
 } from "./_reel.js";
 
-const FILTER_KEYS = ["batch", "status", "format", "hook_type", "look", "voice", "sound", "lead"];
-const LABEL = { status: "Status", format: "Format", hook_type: "Hook", look: "Look", voice: "Voice", sound: "Sound", lead: "Lead" };
-
 export function render(root, { params = {} } = {}) {
+  // Filters: batch, status, then every choice lever of this workspace.
+  const levers = choiceLevers();
+  const FILTER_KEYS = ["batch", "status", ...levers.map((f) => f.key)];
+  const LABEL = { status: "Status", ...Object.fromEntries(levers.map((f) => [f.key, f.label ?? fmt.label(f.key)])) };
+  const brand = store.brand();
+  const val = (r, k) => (k === "batch" || k === "status" ? r[k] : store.lever(r, k));
   const state = { q: "", ...Object.fromEntries(FILTER_KEYS.map((k) => [k, params[k] ?? ""])) };
 
   const countEl = h("p");
-  const syncBtn = store.canEdit()
+  // Sync needs a media library source (studio.workspaces.media_manifest_url).
+  const syncBtn = store.canEdit() && store.workspace?.media_manifest_url
     ? h("button.btn.primary", { onclick: syncLibrary }, "Sync library")
     : null;
 
@@ -28,7 +32,9 @@ export function render(root, { params = {} } = {}) {
       if (n) console.info("Library import notes", out.notes);
       toast(`Library synced: ${out.reels ?? 0} reels, ${out.assets ?? 0} files.${n ? ` ${n} note${n === 1 ? "" : "s"} in the console.` : ""}`, "good");
     } catch (e) {
-      toast(`Sync failed: ${e.message}`, "bad");
+      // 409: this workspace has no media library source yet (e.g. a new product).
+      if (e.status === 409) toast(e.message || `${brand} has no media library source yet.`, "warn");
+      else toast(`Sync failed: ${e.message}`, "bad");
     } finally {
       syncBtn.disabled = false;
       syncBtn.textContent = "Sync library";
@@ -37,7 +43,8 @@ export function render(root, { params = {} } = {}) {
 
   // ---- filters (built once, so typing in search is never interrupted) -------
   const search = h("input", {
-    type: "search", placeholder: "Title, id, word, caption", value: state.q,
+    type: "search", value: state.q,
+    placeholder: store.leverFields().some((f) => f.key === "word_taught") ? "Title, id, word, caption" : "Title, id, caption, notes",
     oninput: () => { state.q = search.value.trim().toLowerCase(); renderGrid(); },
   });
   const selects = {};
@@ -76,9 +83,10 @@ export function render(root, { params = {} } = {}) {
     grid);
 
   function matches(r) {
-    for (const k of FILTER_KEYS) if (state[k] && (r[k] ?? "") !== state[k]) return false;
+    for (const k of FILTER_KEYS) if (state[k] && String(val(r, k) ?? "") !== state[k]) return false;
     if (state.q) {
-      const hay = [r.id, r.title, r.word_taught, r.caption_organic, r.notes, r.batch].join(" ").toLowerCase();
+      const textLevers = store.leverFields().filter((f) => f.kind === "text").map((f) => store.lever(r, f.key));
+      const hay = [r.id, r.title, ...textLevers, r.caption_organic, r.notes, r.batch].join(" ").toLowerCase();
       if (!hay.includes(state.q)) return false;
     }
     return true;
@@ -90,16 +98,16 @@ export function render(root, { params = {} } = {}) {
     const posts = reelPosts(r.id);
     const live = posts.filter((p) => p.status === "live").length;
     const flags = Array.isArray(r.flags) ? r.flags : [];
+    const PREFIX = { hook_type: "hook", voice: "voice", word_taught: "word" };
     const tags = [
-      r.format && leverLabel("format", r.format),
-      r.hook_type && `hook: ${leverLabel("hook_type", r.hook_type)}`,
-      r.look && leverLabel("look", r.look),
-      r.voice && `voice: ${leverLabel("voice", r.voice)}`,
-      r.sound && leverLabel("sound", r.sound),
-      r.lead && leverLabel("lead", r.lead),
+      ...store.leverFields().map((f) => {
+        const v = store.lever(r, f.key);
+        if (v == null || v === "") return null;
+        if (f.kind === "bool") return v === true ? (f.label ?? fmt.label(f.key)) : null;
+        const text = f.kind === "text" ? v : leverLabel(f.key, v);
+        return PREFIX[f.key] ? `${PREFIX[f.key]}: ${text}` : text;
+      }),
       r.length_bucket && leverLabel("length_bucket", r.length_bucket),
-      r.word_taught && `word: ${r.word_taught}`,
-      r.arabic_frame0 === true ? "Arabic at frame 0" : null,
     ].filter(Boolean);
     const open = () => openReel(r.id);
     return h("article.card.reel-card", {
@@ -124,12 +132,23 @@ export function render(root, { params = {} } = {}) {
     batchSelect();
     const all = sortReels([...store.reels.values()]);
     const list = all.filter(matches);
+    filters.style.display = all.length ? "" : "none";
     countEl.textContent = all.length
       ? `${list.length} of ${all.length} reels${list.length !== all.length ? " match the filters" : ""}.`
       : "";
     if (!all.length) {
-      clear(grid, empty("The library is empty.", store.canEdit()
-        ? h("p", "Press Sync library to import batch 1, batch 2, P01 and batch 3 from the repo.") : null));
+      const hasSource = !!store.workspace?.media_manifest_url;
+      clear(grid, h("div.empty",
+        h("h3", `No videos yet for ${brand}`),
+        h("p", "Videos appear here when they are planned on the content calendar or imported from the media library."),
+        h("ul", { style: { textAlign: "left", display: "inline-block", margin: "0 auto" } },
+          h("li", "Planned videos arrive from the content calendar sync, each on its planned date."),
+          h("li", hasSource
+            ? "Press Sync library to import the finished files and their captions."
+            : store.isOwner()
+              ? `${brand} has no media library source yet, so finished files cannot be imported. Plan videos on the content calendar for now.`
+              : `${brand} has no media library source yet. Until the owner adds one, plan videos on the content calendar.`)),
+        h("p", h("a", { href: href("calendar") }, "Open the calendar"))));
       return;
     }
     if (!list.length) {

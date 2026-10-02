@@ -1,12 +1,12 @@
-# Maana Studio
+# Studio (Maana and Mawadda)
 
-The team's marketing command centre: library of reels, launches to Instagram, Facebook, YouTube Shorts and TikTok, experiments, and live insights. Served at **https://getmaana.com/studio/** (`noindex`, team sign-in only).
+The marketing command centre for **Maana** and **Mawadda**: library of reels, launches to Instagram, Facebook, YouTube Shorts and TikTok, experiments, a content calendar and live insights. Served at **https://getmaana.com/studio/** (`noindex`, team sign-in only). Each product is a **workspace**, logically isolated: its own reels, posts, accounts, keys, settings, numbers and team roles.
 
 ## Architecture
 
 | Part | Where | Notes |
 |---|---|---|
-| Web app | `getmaana-site/studio/` | Static ES modules, no build step. GitHub Pages serves it from `main`. `build.py` never touches this folder. Hash routing (`#/library`) because Pages has no SPA fallback. |
+| Web app | `getmaana-site/studio/` | Static ES modules, no build step. GitHub Pages serves it from `main`. `build.py` never touches this folder. Hash routing (`#/w/<workspace>/<view>`, e.g. `#/w/mawadda/library`) because Pages has no SPA fallback. |
 | Database | Supabase project `vymyqrxvpzlhzpvsuhya` (the app's production project), schema **`studio`** only | Migrations in `maana/supabase/migrations/20260930*_studio_*.sql`. Nothing touches app tables. RLS on every table. |
 | Server code | Edge Functions `studio-api` and `studio-worker` | Source in `maana/supabase/functions/`. Platform adapters in `_shared/platforms/`. |
 | Scheduling | `pg_cron` job `studio-worker` (every minute) | Calls `studio.kick_worker()`, which only wakes the worker when a job is due. `studio-health` runs daily at 06:17 UTC. |
@@ -14,16 +14,29 @@ The team's marketing command centre: library of reels, launches to Instagram, Fa
 | Tokens | Supabase Vault (`studio.secret_put` / `secret_get`, service role only) and Edge Function secrets | Tokens never reach the browser. `studio.connections` holds health only. |
 | Videos | GitHub Release `library` in the public repo `sytalhas/maana-media` | Free, 2 GB per file. Supabase stores only URLs. Uploaded by `maana/marketing/studio/import_library.py --upload`. |
 
+### Workspaces
+
+`studio.workspaces` holds one row per product (`maana`, `mawadda`): name, app ids (`ios_app_id`, `android_id`, `bundle_id`), `palette` (CSS custom properties), `logo_url`, `fonts`, `copy` (brand copy: studio name, domain, privacy and terms URLs, support email, store links, sample handles), `preflight` (brand copy rules), `levers` (vocabularies and the lever fields the UI shows) and `media_manifest_url`. Migration: `maana/supabase/migrations/20261003120000_studio_workspaces.sql` (review notes in `maana/supabase/STUDIO_WORKSPACES_REVIEW.md`).
+
+- **Isolation.** Every `studio` table has `workspace_id` (existing rows are `maana`). Roles are per workspace (`studio.members` is keyed by `(workspace_id, email)`), and every RLS policy checks the row's workspace, so a Mawadda-only member never sees a Maana row. Keys and tokens are stored per workspace too.
+- **Switcher.** The top of the sidebar (and the phone top bar) shows the workspace logo and name, with a segmented **Maana | Mawadda** control when the person belongs to more than one. People only see workspaces they are members of; a single-workspace member sees no switcher.
+- **Routing.** `#/w/<workspace>/<view>[/rest][?query]`. Old links (`#/library`) open in the current workspace, else the last one used on this device (`localStorage studio.lastWorkspace`), else Maana if the person is a member, else their first workspace. A workspace the person is not a member of redirects with a notice. In code, build links with `href("posts?post=…")` from `js/store.js`.
+- **Data.** `js/store.js` loads one workspace at a time: memberships from `studio.claim_memberships()`, the rows the person may open from `studio.workspaces`, then every table filtered by `workspace_id`, with Realtime subscriptions filtered by `workspace_id=eq.<ws>`. Switching workspace reloads everything. Inserts always set `workspace_id`; updates and deletes keyed by text ids also filter by it. When an owner opens a workspace that has no settings yet, `studio.seed_workspace_settings(ws)` writes the defaults once.
+- **API.** `api()` in `js/supa.js` adds `workspace` to every studio-api POST body and `?workspace=` to GETs. OAuth callbacks return to `#/w/<ws>/connections`.
+- **Theming.** `applyTheme()` in `js/app.js` writes the workspace `palette` as CSS variables on `:root`, loads `fonts.css` (Google Fonts only), sets `--serif`/`--sans` and `document.title = copy.studio_name`. `css/studio.css` keeps Maana's values as the defaults, plus `--side` (sidebar and primary buttons), `--side-ink`, `--side-mute` and `--brand` (links). Mawadda: maroon `#7B011E` sidebar, gold `#B08A3E`, sand `#F4EEE1`, ink `#2C211B`, Fraunces + Plus Jakarta Sans.
+- **Levers.** The reel editor, Library filters, Dashboard breakdowns, What's winning and Experiments use `workspaces.levers.fields` (`store: "column"` reads the `studio.reels` column, `store: "levers"` reads `reels.levers` jsonb) and the vocabularies in `levers.vocab`, which the database also enforces. Maana-only concepts (recitation added in the Instagram app) show only when `preflight.recitation_rules` is on.
+- **New workspace.** Dashboard, Library, Calendar, Posts and Connections show first-run guidance ("Connect Mawadda's Instagram first") until the workspace has content.
+
 ### Data model (schema `studio`)
 
-`members` (allowlist + roles) · `settings` (targets, spend cap, cadence, App Store) · `reels` (creative + levers) · `assets` (files) · `posts` (reel × platform × type, status, times, platform ids) · `metrics_snapshots` (time series; view `latest_metrics`) · `experiments` · `connections` + `connection_secrets` · `jobs` (launch and sync queue with retries) · `campaign_links` · `alerts` · `audit_log`.
+`workspaces` (one per product) · `members` (allowlist + roles per workspace) · `settings` (targets, spend cap, cadence, App Store) · `reels` (creative + levers) · `assets` (files) · `posts` (reel × platform × type, status, times, platform ids) · `metrics_snapshots` (time series; view `latest_metrics`) · `experiments` · `connections` + `connection_secrets` · `jobs` (launch and sync queue with retries) · `campaign_links` · `alerts` · `audit_log`.
 
 ### Safety rails
 
 - **Nothing is sent to the outside world without a person clicking Confirm.** Posts are created as drafts, pass pre-flight (`_shared/preflight.ts`), then `studio.confirm_posts()` records who confirmed and queues them. The worker refuses unconfirmed posts and re-runs pre-flight before publishing. Editing a confirmed post clears the confirmation.
 - Browsers cannot set confirmation, pre-flight results, platform ids or publish status (trigger `studio.guard_posts`).
 - Ad objects are created **paused**. Activation is a separate confirmed action and is refused if it would exceed the spend cap in Settings (default $100 total).
-- Pre-flight blocks: em dashes; "free plan", "Premium", "trial", "Free to start", bare "no subscription"; time-bound learning promises (TikTok, and all paid); second-person religious copy in paid (Meta personal-attributes policy); recitation cuts outside the Instagram manual path; shelved or retired reels; reels flagged `needs_rerender`; platform length and caption limits.
+- Pre-flight rules come from the workspace (`workspaces.preflight`). Maana blocks: em dashes; "free plan", "Premium", "trial", "Free to start", bare "no subscription"; time-bound learning promises (TikTok, and all paid); second-person religious copy in paid (Meta personal-attributes policy); recitation cuts outside the Instagram manual path; shelved or retired reels; reels flagged `needs_rerender`; platform length and caption limits. Mawadda blocks em dashes, "no tracking", "ad-free", "exclusive content", warns on spouse-gender assumptions, and keeps the time-promise and paid second-person religion rules (no recitation rules).
 
 ## Runbook
 
@@ -54,7 +67,7 @@ Web app: commit `studio/` to `getmaana-site` `main`; Pages publishes it in about
 
 ### Add a teammate
 
-Settings → Members → add their email and a role (owner, editor, viewer). They sign in at getmaana.com/studio with a magic link. Supabase's built-in email only delivers to members of the Supabase organisation; for anyone else, add them to the Supabase org or set a custom SMTP sender first.
+Open the workspace, then Settings → team → add their email and a role (owner, editor, viewer). Roles are per workspace: add the same email in the other workspace to give access there too. They sign in at getmaana.com/studio with a magic link. Supabase's built-in email only delivers to members of the Supabase organisation; for anyone else, add them to the Supabase org or set a custom SMTP sender first.
 
 ### Import the library
 
@@ -63,9 +76,34 @@ python3 marketing/studio/import_library.py            # dry run: writes marketin
 python3 marketing/studio/import_library.py --upload   # uploads changed files + manifest to sytalhas/maana-media
 ```
 
-Then press **Sync library** in Studio. Hand-edited levers are never overwritten. Batch 3 folders are picked up automatically when `<id>.mp4` lands.
+Then press **Sync library** in Studio (Maana workspace). A workspace without `media_manifest_url` (Mawadda today) has no Sync library button. Hand-edited levers are never overwritten. Batch 3 folders are picked up automatically when `<id>.mp4` lands.
 
 ### Content calendar
+
+**Sync contract (with workspaces).** A calendar client writes one workspace's plan into `studio.reels`:
+
+```sql
+insert into studio.reels as r
+  (workspace_id, id, title, batch, folder, status, planned_for, pipeline_status, word_taught, levers)
+values (...)
+on conflict (workspace_id, id) do update set
+  planned_for     = case when r.status in ('scheduled','live','shelved','retired') then r.planned_for else excluded.planned_for end,
+  pipeline_status = excluded.pipeline_status,
+  folder          = coalesce(excluded.folder, r.folder),
+  word_taught     = coalesce(r.word_taught, excluded.word_taught),
+  levers          = r.levers || coalesce(excluded.levers, '{}'::jsonb),
+  status          = case when r.status in ('scheduled','live','shelved','retired') then r.status
+                         when array_position(array['idea','in_production','ready'], excluded.status)
+                              > coalesce(array_position(array['idea','in_production','ready'], r.status), 0)
+                           then excluded.status
+                         else r.status end,
+  updated_at      = now();
+```
+
+- Columns: `workspace_id` (required: `maana` or `mawadda`), `id` (calendar id, unique per workspace), `title`, `batch`, `folder`, `status` (`idea`, `in_production` or `ready` from the calendar), `planned_for` (date), `pipeline_status` (agreed, writing, filming, drafted, recorded, spliced, blocked), `word_taught` (Maana only), and optionally `levers` (jsonb, the workspace's brand levers such as Mawadda's `topic` and `audience`; values must be in `workspaces.levers.vocab` or the insert is refused).
+- Rules (unchanged): `planned_for` and `status` are never overwritten while a reel is scheduled, live, shelved or retired; `status` only moves forward among idea, in_production, ready.
+- The pull query must join posts within the workspace: `from studio.reels r left join studio.posts p on p.workspace_id = r.workspace_id and p.reel_id = r.id where r.workspace_id = '<ws>'`.
+- The old `on conflict (id)` stops working once `20261003120000_studio_workspaces.sql` is applied (the key is now `(workspace_id, id)`).
 
 Planned videos come from the maana repo's `marketing/content/CALENDAR.md`. Run `python3 marketing/pipeline/studio_calendar_sync.py --apply` (the `/marketing*` skills run it for you). It pushes each row from `agreed` onwards into `studio.reels`, using the calendar id (t-006) as the reel id. It sets `planned_for` and `pipeline_status`, and moves `status` only forward (idea, then in_production, then ready). It never touches a reel that is scheduled, live, shelved or retired. It also pulls post times and live status back into the file. The Calendar view shows a planned reel as a dashed "Plan" chip on its `planned_for` day until the reel has a post. Needs migration `20261001120000_studio_planned.sql`.
 

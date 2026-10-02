@@ -2,7 +2,7 @@
 // beating or missing targets) and the recent job queue, failures first.
 
 import { supa } from "../supa.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { h, clear, toast, fmt, pill, statusKind, empty, PLATFORM_NAMES } from "../ui.js";
 import { reelTitle, currentUserId } from "./_reel.js";
 
@@ -70,10 +70,10 @@ export function render(root) {
           h("div", { style: { fontWeight: "700" } }, a.message),
           h("div.small", { style: { opacity: ".85", marginTop: "2px" } },
             `${fmt.label(a.kind)} · ${fmt.ago(a.created_at)}`,
-            post ? h("span", " · ", h("a", { href: `#/posts?post=${encodeURIComponent(post.id)}` },
+            post ? h("span", " · ", h("a", { href: href(`posts?post=${encodeURIComponent(post.id)}`) },
               `${reelTitle(post.reel_id)} on ${PLATFORM_NAMES[post.platform]}`)) : null,
             a.post_id && !post ? " · post no longer listed" : null,
-            conn || a.connection_id ? h("span", " · ", h("a", { href: "#/connections" },
+            conn || a.connection_id ? h("span", " · ", h("a", { href: href("connections") },
               conn ? `${PLATFORM_NAMES[conn.platform]} connection` : "Connections")) : null)),
         canEdit ? h("button.btn.small", { onclick: () => resolve([a.id]) }, "Resolve") : null);
     })));
@@ -92,7 +92,7 @@ export function render(root) {
         return h("tr",
           h("td", fmt.label(j.kind)),
           h("td", PLATFORM_NAMES[j.platform] ?? j.platform ?? "–"),
-          h("td", post ? h("a", { href: `#/posts?post=${encodeURIComponent(post.id)}` }, post.reel_id.toUpperCase()) : "–"),
+          h("td", post ? h("a", { href: href(`posts?post=${encodeURIComponent(post.id)}`) }, post.reel_id.toUpperCase()) : "–"),
           h("td", pill(j.status, statusKind(j.status === "pending" ? "scheduled" : j.status))),
           h("td.num", `${j.attempts} / ${j.max_attempts}`),
           h("td", { style: { whiteSpace: "nowrap" } }, fmt.dateTime(j.run_at)),

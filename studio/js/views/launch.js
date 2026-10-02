@@ -4,7 +4,7 @@
 // one-click confirmation that lists exactly what goes where).
 
 import { supa, api } from "../supa.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { h, clear, toast, confirmAction, fmt, pill, statusKind, field, select, empty, PLATFORM_NAMES } from "../ui.js";
 import {
   POST_PLATFORMS, sortReels, reelVideos, reelPoster, reelTitle, fileName, flagText, isBlockingFlag,
@@ -37,6 +37,13 @@ export function render(root, { params = {} } = {}) {
     h("p", "Pick a reel, tick platforms, check, then launch. Nothing is sent until you confirm.")));
   if (!store.canEdit()) {
     clear(root, head, empty("Only editors and owners can launch. You can follow every launch in Posts."));
+    return null;
+  }
+  if (!store.reels.size) {
+    clear(root, head, empty(`${store.brand()} has no videos to launch yet. Plan one on the content calendar, or sync the library once the files exist.`,
+      h("div.row", { style: { justifyContent: "center" } },
+        h("a.btn.primary", { href: href("calendar") }, "Open the calendar"),
+        !store.connections.size ? h("a.btn.ghost", { href: href("connections") }, "Connect accounts") : null)));
     return null;
   }
 
@@ -81,7 +88,7 @@ export function render(root, { params = {} } = {}) {
     S.assetId = (vids.find((v) => v.variant === "main") ?? vids[0])?.id ?? "";
     clear(assetSel, vids.length
       ? vids.map((v) => h("option", { value: v.id, selected: v.id === S.assetId },
-        `${v.variant}${v.duration_s != null ? `, ${Number(v.duration_s).toFixed(1)} s` : ""}${v.manual_audio ? ", silent: recitation added in Instagram" : v.audio ? `, audio: ${fmt.label(v.audio)}` : ""}`))
+        `${v.variant}${v.duration_s != null ? `, ${Number(v.duration_s).toFixed(1)} s` : ""}${v.manual_audio ? (store.recitation() ? ", silent: recitation added in Instagram" : ", silent: sound added in Instagram") : v.audio ? `, audio: ${fmt.label(v.audio)}` : ""}`))
       : h("option", { value: "" }, r ? "No video files for this reel" : "Choose a reel first"));
     for (const c of cards) prefill(c, r);
     renderReelInfo();
@@ -255,14 +262,18 @@ export function render(root, { params = {} } = {}) {
       c.on.disabled = recitation;
       if (recitation) {
         c.on.checked = false;
-        notes.push(h("div.notice", "This cut needs recitation added in the Instagram app, so it can only go to Instagram. Pick the main cut for other platforms."));
+        notes.push(h("div.notice", store.recitation()
+          ? "This cut needs recitation added in the Instagram app, so it can only go to Instagram. Pick the main cut for other platforms."
+          : "This cut needs its sound added in the Instagram app, so it can only go to Instagram. Pick the main cut for other platforms."));
       }
     }
     if (c.p === "instagram") {
       if (recitation) {
         c.method.value = "manual";
         c.method.disabled = true;
-        notes.push(h("div.notice.info", "Silent recitation cut: this goes down the manual checklist. After you confirm, Posts shows the steps (download, add the recitation from Instagram's sound library as POSTING.md says, paste the caption, post, paste the link back)."));
+        notes.push(h("div.notice.info", store.recitation()
+          ? "Silent recitation cut: this goes down the manual checklist. After you confirm, Posts shows the steps (download, add the recitation from Instagram's sound library as POSTING.md says, paste the caption, post, paste the link back)."
+          : "Silent cut: this goes down the manual checklist. After you confirm, Posts shows the steps (download, add the sound in Instagram, paste the caption, post, paste the link back)."));
       } else c.method.disabled = false;
       const trial = c.type.value === "trial";
       show(c.shareFeedWrap, !trial);
@@ -290,9 +301,9 @@ export function render(root, { params = {} } = {}) {
     const conn = connFor(c.p);
     const manual = c.method?.value === "manual";
     if (manual) return clear(c.health, pill("manual: no connection needed", ""));
-    if (!conn) return clear(c.health, h("a.pill.bad", { href: "#/connections", style: { textDecoration: "none" } }, "not connected"));
+    if (!conn) return clear(c.health, h("a.pill.bad", { href: href("connections"), style: { textDecoration: "none" } }, "not connected"));
     const exp = conn.token_expires_at ? `, token until ${fmt.date(conn.token_expires_at)}` : "";
-    clear(c.health, h("a", { href: "#/connections", title: `${conn.account_name ?? conn.account_id}${exp}. Checked ${fmt.ago(conn.last_checked_at)}.`, style: { textDecoration: "none" } },
+    clear(c.health, h("a", { href: href("connections"), title: `${conn.account_name ?? conn.account_id}${exp}. Checked ${fmt.ago(conn.last_checked_at)}.`, style: { textDecoration: "none" } },
       pill(conn.status, statusKind(conn.status))));
   }
 
@@ -485,7 +496,7 @@ export function render(root, { params = {} } = {}) {
           if (error) throw new Error(`${PLATFORM_NAMES[p]}: ${error.message}`);
           if (data?.length) continue;
         }
-        const { data, error } = await supa.from("posts").insert({ ...row, status: "draft" }).select("id").single();
+        const { data, error } = await supa.from("posts").insert({ ...row, workspace_id: store.wsId, status: "draft" }).select("id").single();
         if (error) throw new Error(`${PLATFORM_NAMES[p]}: ${error.message}`);
         S.drafts[p] = data.id;
       }
@@ -558,7 +569,7 @@ export function render(root, { params = {} } = {}) {
     S.launched = true;
     S.drafts = {};
     toast(`Launched ${ps.length} post${ps.length === 1 ? "" : "s"}. Follow them in Posts.`, "good");
-    location.hash = "#/posts";
+    location.hash = href("posts");
   }
 
   async function discard(announce) {

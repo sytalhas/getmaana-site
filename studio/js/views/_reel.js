@@ -2,24 +2,29 @@
 // detail and editor modal (openReel).
 
 import { supa } from "../supa.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { h, clear, toast, modal, fmt, pill, statusKind, field, select, PLATFORM_NAMES } from "../ui.js";
 
-// Lever values, exactly as the studio.reels check constraints allow them.
-export const LEVERS = {
-  status: ["idea", "in_production", "ready", "scheduled", "live", "shelved", "retired"],
-  hook_type: ["question", "number", "statement", "pov", "pattern", "myth_bust"],
-  format: ["teach_one_word", "story", "puzzle", "count_along", "before_after", "founder", "playable"],
-  look: ["paper", "night", "footage", "chalkboard"],
-  voice: ["none", "tts", "human"],
-  lead: ["product_first", "aha_first"],
-  sound: ["silence", "sfx", "in_app_recitation", "voice"],
-};
+// Reel statuses (same for every workspace). Lever vocabularies come from the
+// open workspace (studio.workspaces.levers), which the database enforces.
+export const STATUSES = ["idea", "in_production", "ready", "scheduled", "live", "shelved", "retired"];
+
+/** Allowed values of a lever in the open workspace. */
+export function leverValues(key) {
+  if (key === "status") return STATUSES;
+  return store.vocab(key) ?? [];
+}
+
+/** Choice levers of the open workspace: [{key, label, kind, store}]. */
+export function choiceLevers() {
+  return store.leverFields().filter((f) => f.kind === "choice");
+}
 
 export const POST_PLATFORMS = ["instagram", "facebook", "youtube", "tiktok"];
 
 export const LABELS = {
   hook_type: { pov: "POV", myth_bust: "myth-bust" },
+  format: { myth_bust: "myth-bust", app_demo: "app demo" },
   voice: { tts: "TTS" },
   sound: { sfx: "sound effects", in_app_recitation: "in-app recitation" },
   length_bucket: { under_15s: "under 15 s", "15_30s": "15 to 30 s", "30_45s": "30 to 45 s", "45s_plus": "45 s plus" },
@@ -31,7 +36,7 @@ export function leverLabel(key, value) {
 }
 
 export function leverOptions(key, anyLabel) {
-  const opts = LEVERS[key].map((v) => [v, leverLabel(key, v)]);
+  const opts = leverValues(key).map((v) => [v, leverLabel(key, v)]);
   return anyLabel ? [["", anyLabel], ...opts] : [["", "Not set"], ...opts];
 }
 
@@ -170,17 +175,34 @@ export function openReel(reelId) {
   // ---- form ---------------------------------------------------------------
   const inputs = {};
   const mark = () => { dirty = true; };
-  const sel = (key) => (inputs[key] = select(leverOptions(key), reel0[key] ?? "", { disabled: !canEdit, onchange: mark }));
   const text = (key, attrs = {}) => (inputs[key] = h("input", { value: reel0[key] ?? "", disabled: !canEdit, oninput: mark, ...attrs }));
+  // One input per lever field of this workspace (column or reels.levers jsonb).
+  const leverFields = store.leverFields();
+  const leverInput = (f) => {
+    const cur = store.lever(reel0, f.key);
+    if (f.kind === "bool") {
+      return (inputs[f.key] = select([["", "Not set"], ["true", "Yes"], ["false", "No"]],
+        cur == null ? "" : String(cur), { disabled: !canEdit, onchange: mark }));
+    }
+    if (f.kind === "text") {
+      return (inputs[f.key] = h("input", { value: cur ?? "", disabled: !canEdit, oninput: mark,
+        placeholder: f.key === "word_taught" ? "e.g. qāla" : "" }));
+    }
+    return (inputs[f.key] = select(leverOptions(f.key), cur ?? "", { disabled: !canEdit, onchange: mark }));
+  };
+  const leverValue = (f) => {
+    const v = inputs[f.key].value;
+    if (f.kind === "bool") return v === "" ? null : v === "true";
+    if (f.kind === "text") return v.trim() || null;
+    return v || null;
+  };
   const area = (key, value, attrs = {}) => {
     const el = h("textarea", { disabled: !canEdit, ...attrs }, value ?? "");
     return el;
   };
 
   inputs.title = h("input", { value: reel0.title ?? "", disabled: !canEdit, oninput: mark });
-  inputs.status = select(LEVERS.status.map((v) => [v, fmt.label(v)]), reel0.status, { disabled: !canEdit, onchange: mark });
-  inputs.arabic_frame0 = select([["", "Not set"], ["true", "Yes"], ["false", "No"]],
-    reel0.arabic_frame0 == null ? "" : String(reel0.arabic_frame0), { disabled: !canEdit, onchange: mark });
+  inputs.status = select(STATUSES.map((v) => [v, fmt.label(v)]), reel0.status, { disabled: !canEdit, onchange: mark });
 
   const captionCount = (el, max) => {
     const c = h("span");
@@ -204,14 +226,7 @@ export function openReel(reelId) {
     h("div.grid.cols-3",
       field("Title", inputs.title),
       field("Status", inputs.status),
-      field("Hook type", sel("hook_type")),
-      field("Format", sel("format")),
-      field("Look", sel("look")),
-      field("Voice", sel("voice")),
-      field("Sound", sel("sound")),
-      field("Lead", sel("lead")),
-      field("Arabic on screen at frame 0", inputs.arabic_frame0),
-      field("Word taught", text("word_taught", { placeholder: "e.g. qāla" })),
+      leverFields.map((f) => field(f.label ?? fmt.label(f.key), leverInput(f))),
       field("Length (seconds)", text("length_s", { type: "number", step: "0.1", min: "0" }),
         `Bucket: ${leverLabel("length_bucket", reel0.length_bucket)}`),
       field("Batch", h("input", { value: reel0.batch ?? "", disabled: true }), reel0.folder ? `marketing/${reel0.folder}` : null)),
@@ -235,14 +250,6 @@ export function openReel(reelId) {
     const patch = {
       title: inputs.title.value.trim() || reel0.title,
       status: inputs.status.value,
-      hook_type: inputs.hook_type.value || null,
-      format: inputs.format.value || null,
-      look: inputs.look.value || null,
-      voice: inputs.voice.value || null,
-      sound: inputs.sound.value || null,
-      lead: inputs.lead.value || null,
-      arabic_frame0: inputs.arabic_frame0.value === "" ? null : inputs.arabic_frame0.value === "true",
-      word_taught: inputs.word_taught.value.trim() || null,
       length_s: num === "" ? null : Number(num),
       caption_organic: inputs.caption_organic.value || null,
       caption_paid: inputs.caption_paid.value || null,
@@ -250,8 +257,18 @@ export function openReel(reelId) {
       captions,
       notes: inputs.notes.value || null,
     };
+    const jsonLevers = { ...(store.reels.get(reelId)?.levers ?? {}) };
+    let touchedJson = false;
+    for (const f of leverFields) {
+      const v = leverValue(f);
+      if (f.store === "levers") {
+        touchedJson = true;
+        if (v == null) delete jsonLevers[f.key]; else jsonLevers[f.key] = v;
+      } else patch[f.key] = v;
+    }
+    if (touchedJson) patch.levers = jsonLevers;
     saveBtn.disabled = true;
-    const { error } = await supa.from("reels").update(patch).eq("id", reelId);
+    const { error } = await supa.from("reels").update(patch).eq("workspace_id", store.wsId).eq("id", reelId);
     saveBtn.disabled = false;
     if (error) return toast(`Could not save: ${error.message}`, "bad");
     dirty = false;
@@ -261,7 +278,7 @@ export function openReel(reelId) {
 
   const saveBtn = h("button.btn.primary", { onclick: save }, "Save changes");
   const launchBtn = h("button.btn.coral", {
-    onclick: () => { m.close(); location.hash = `#/launch?reel=${encodeURIComponent(reelId)}`; },
+    onclick: () => { m.close(); location.hash = href(`launch?reel=${encodeURIComponent(reelId)}`); },
   }, "Launch this reel");
 
   // ---- live parts -----------------------------------------------------------
@@ -292,7 +309,8 @@ export function openReel(reelId) {
           : h("div.reel-thumb.empty", { style: { display: "grid", placeItems: "center" } }, "No media URL yet"),
         h("figcaption.small.muted", { style: { marginTop: "4px" } },
           h("strong", v.variant), ` · ${fmt.sec(num(v.duration_s))}`,
-          v.manual_audio ? h("span", " · ", pill("recitation added in Instagram", "warn")) : null)))
+          v.manual_audio && store.recitation() ? h("span", " · ", pill("recitation added in Instagram", "warn"))
+            : v.manual_audio ? h("span", " · ", pill("sound added in Instagram", "warn")) : null)))
         : empty0("No video files yet. Sync the library once the render lands."));
     }
 

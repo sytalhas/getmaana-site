@@ -2,10 +2,11 @@
 // time, recent activity and CSV exports. Everything is the ratio of sums.
 
 import { h, clear, fmt, toast, pill, statusKind, select, empty, downloadFile, field, PLATFORM_NAMES } from "../ui.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { api } from "../supa.js";
-import { KPIS, breakdown, buildRows, inRange, dailyViews, DIMENSIONS } from "../kpi.js";
+import { KPIS, breakdown, buildRows, inRange, dailyViews, DIMENSIONS, LEVERS } from "../kpi.js";
 import { toCSV } from "../csv.js";
+import { welcomeCard } from "./_welcome.js";
 import { sparkline, kpiText, sampleText, ensureStyle, valueLabel } from "../charts.js";
 
 // Kept across navigation so the team's filter choice sticks for the session.
@@ -128,7 +129,7 @@ function activity() {
       text: `${fmt.label(j.kind)} ${PLATFORM_NAMES[j.platform] ?? j.platform ?? ""}${post ? `, ${post.reel_id}` : ""}${j.status === "failed" && j.last_error ? `: ${j.last_error}` : ""}` });
   }
   for (const p of store.posts.values()) {
-    items.push({ at: p.updated_at ?? p.created_at, status: p.status, href: "#/posts",
+    items.push({ at: p.updated_at ?? p.created_at, status: p.status, href: href("posts"),
       text: `Post ${p.reel_id} on ${PLATFORM_NAMES[p.platform] ?? p.platform} (${p.post_type})${p.status === "failed" && p.error ? `: ${p.error}` : ""}` });
   }
   items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
@@ -145,7 +146,7 @@ function activity() {
 
 function exportPosts(posts) {
   const cols = ["post_id", "reel_id", "reel_title", "batch", "platform", "post_type", "method", "status", "scheduled_at", "published_at",
-    "platform_url", "experiment_id", "variant_label", "hook_type", "format", "look", "voice", "length_bucket", "arabic_frame0", "lead", "sound",
+    "platform_url", "experiment_id", "variant_label", ...LEVERS.map((l) => l.key),
     "last_synced_at", "sources", ...METRIC_FIELDS];
   const rows = buildRows(posts, store.reels, (id) => store.latest(id), { includeEmpty: true });
   const byId = new Map(rows.map((r) => [r.post_id, r]));
@@ -153,7 +154,7 @@ function exportPosts(posts) {
     ...byId.get(p.id), method: p.method, scheduled_at: p.scheduled_at, platform_url: p.platform_url,
     last_synced_at: p.last_synced_at, sources: Object.keys(store.latest(p.id)).join(" "),
   }));
-  downloadFile(`maana-posts-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(cols, out));
+  downloadFile(`${store.wsId}-posts-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(cols, out));
   toast(`Exported ${plural(out.length, "post")}`, "good");
 }
 
@@ -162,7 +163,7 @@ function exportSnapshots() {
   const all = [];
   for (const list of store.metrics.values()) all.push(...list);
   all.sort((a, b) => String(a.captured_at).localeCompare(String(b.captured_at)));
-  downloadFile(`maana-metric-snapshots-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(cols, all));
+  downloadFile(`${store.wsId}-metric-snapshots-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(cols, all));
   toast(`Exported ${plural(all.length, "snapshot")}`, "good");
 }
 
@@ -170,6 +171,12 @@ function exportSnapshots() {
 
 export function render(root) {
   ensureStyle();
+  // Filters are per session, but a batch or lever of another workspace means nothing here.
+  if (state.ws !== store.wsId) {
+    state.ws = store.wsId;
+    state.batch = "";
+    if (!DIMENSIONS.some((d) => d.key === state.dim)) state.dim = "platform";
+  }
   const syncBtn = store.canEdit() ? h("button.btn.primary", {
     title: "Queue an insights sync for every live post now",
     onclick: async () => {
@@ -222,6 +229,7 @@ export function render(root) {
     const all = Object.fromEntries(KPIS.map((k) => [k.key, k.calc(rows)]));
     const unsynced = published - rows.length;
     clear(body,
+      welcomeCard(),
       h("p.small.muted", `${plural(rows.length, "post")} with metrics` +
         (unsynced > 0 ? `, ${plural(unsynced, "published post")} not synced yet` : "") +
         (days() != null ? `, published in the last ${days()} days` : ", all time") + "."),

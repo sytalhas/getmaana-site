@@ -3,7 +3,7 @@
 // paths, manual metrics) plus a CSV export.
 
 import { supa, api } from "../supa.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import {
   h, clear, toast, modal, confirmAction, fmt, pill, statusKind, field, select, empty, downloadFile, PLATFORM_NAMES,
 } from "../ui.js";
@@ -65,7 +65,10 @@ export function render(root, { params = {} } = {}) {
     const list = filtered();
     countEl.textContent = all ? `${list.length} of ${all} posts. Metrics sync hourly for a week, then daily.` : "";
     if (!all) {
-      clear(tableBox, empty("No posts yet.", canEdit ? h("a.btn.primary", { href: "#/launch" }, "Launch a reel") : null));
+      clear(tableBox, empty(`No posts yet for ${store.brand()}. Posts appear here once a reel is launched or scheduled, with live insights after publishing.`,
+        canEdit ? h("div.row", { style: { justifyContent: "center" } },
+          h("a.btn.primary", { href: href("launch") }, "Launch a reel"),
+          !store.connections.size ? h("a.btn.ghost", { href: href("connections") }, "Connect accounts first") : null) : null));
       return;
     }
     if (!list.length) return clear(tableBox, empty("No posts match these filters."));
@@ -83,7 +86,7 @@ export function render(root, { params = {} } = {}) {
       : p.scheduled_at ? h("span", { title: "Scheduled" }, fmt.dateTime(p.scheduled_at), h("div.small.muted", "scheduled"))
         : h("span.muted", fmt.dateTime(p.created_at));
     return h("tr",
-      h("td", { style: { minWidth: "120px" } }, h("a", { href: `#/library?reel=${encodeURIComponent(p.reel_id)}` }, p.reel_id.toUpperCase()),
+      h("td", { style: { minWidth: "120px" } }, h("a", { href: href(`library?reel=${encodeURIComponent(p.reel_id)}`) }, p.reel_id.toUpperCase()),
         h("div.small.muted", store.reels.get(p.reel_id)?.title ?? "")),
       h("td", PLATFORM_NAMES[p.platform] ?? p.platform),
       h("td", fmt.label(p.post_type)),
@@ -157,7 +160,7 @@ export function render(root, { params = {} } = {}) {
       for (const k of METRIC_FIELDS) rec[k] = m[k] ?? "";
       lines.push(cols.map((c) => csvCell(rec[c])).join(","));
     }
-    downloadFile(`maana-posts-${new Date().toISOString().slice(0, 10)}.csv`, lines.join("\n") + "\n");
+    downloadFile(`${store.wsId}-posts-${new Date().toISOString().slice(0, 10)}.csv`, lines.join("\n") + "\n");
     toast(`Exported ${list.length} posts`, "good");
   }
 
@@ -190,7 +193,7 @@ function openDetail(id) {
       p.status === "private_until_audit"
         ? h("div.notice", "YouTube keeps uploads from unaudited API projects private until Google's audit passes. The owner can apply from Connections.") : null,
       h("div.grid.cols-3",
-        kv("Reel", h("a", { href: `#/library?reel=${encodeURIComponent(p.reel_id)}` }, reelTitle(p.reel_id))),
+        kv("Reel", h("a", { href: href(`library?reel=${encodeURIComponent(p.reel_id)}`) }, reelTitle(p.reel_id))),
         kv("File", a ? fileName(a) : "–"),
         kv("Scheduled", fmt.dateTime(p.scheduled_at)),
         kv("Published", fmt.dateTime(p.published_at)),
@@ -294,7 +297,7 @@ function manualMetricsForm(postId) {
   const form = h("form.stack", {
     onsubmit: async (e) => {
       e.preventDefault();
-      const row = { post_id: postId, source: "manual" };
+      const row = { workspace_id: store.wsId, post_id: postId, source: "manual" };
       let any = false;
       for (const [k] of FIELDS) {
         const v = inputs[k].value.trim();
@@ -319,7 +322,8 @@ function manualMetricsForm(postId) {
 }
 
 // ---------------------------------------------------------------------------
-// Manual path: Instagram recitation cuts, TikTok inbox drafts
+// Manual path: Instagram cuts whose sound is added in the app (Maana's
+// recitation cuts), TikTok inbox drafts
 // ---------------------------------------------------------------------------
 
 function openManual(id) {
@@ -345,9 +349,12 @@ function openManual(id) {
         asset?.url ? h("a", { href: asset.url, download: fileName(asset), target: "_blank", rel: "noopener" }, fileName(asset)) : "no media URL yet",
         ". Save it to the phone that posts to the Instagram account.")],
       ["create", "In Instagram, tap +, then Reel, and pick that file."],
-      ["sound", h("span", "Add the recitation from Instagram's sound library exactly as noted in ", h("code", posting),
-        " (search terms, in-point, trim). Never use a file with recitation baked in.",
-        reel?.notes ? h("div.small.muted", { style: { marginTop: "4px", whiteSpace: "pre-wrap" } }, reel.notes) : null)],
+      ["sound", store.recitation()
+        ? h("span", "Add the recitation from Instagram's sound library exactly as noted in ", h("code", posting),
+          " (search terms, in-point, trim). Never use a file with recitation baked in.",
+          reel?.notes ? h("div.small.muted", { style: { marginTop: "4px", whiteSpace: "pre-wrap" } }, reel.notes) : null)
+        : h("span", "Add the sound in Instagram as the reel's notes say.",
+          reel?.notes ? h("div.small.muted", { style: { marginTop: "4px", whiteSpace: "pre-wrap" } }, reel.notes) : null)],
       ["caption", h("span", "Paste the caption, then the first comment if there is one. ", copyCaption,
         p.first_comment ? h("button.btn.small.ghost", { style: { marginLeft: "6px" }, onclick: () => copyText(p.first_comment, "First comment") }, "Copy first comment") : null)],
       ["post", "Post it. Organic only: never boost this reel."],
@@ -364,7 +371,8 @@ function openManual(id) {
     if (error) toast(`Could not save the checklist: ${error.message}`, "bad");
   }
 
-  const url = h("input", { type: "url", placeholder: tiktok ? "https://www.tiktok.com/@maana/video/..." : "https://www.instagram.com/reel/..." });
+  const ttHandle = String(store.copy("handles", {})?.tiktok ?? "@account").replace(/^@?/, "@");
+  const url = h("input", { type: "url", placeholder: tiktok ? `https://www.tiktok.com/${ttHandle}/video/...` : "https://www.instagram.com/reel/..." });
   const attach = h("button.btn.primary", { type: "submit" }, "Attach and start syncing");
   const pattern = tiktok ? /^https:\/\/(www\.|vm\.)?tiktok\.com\//i : /^https:\/\/(www\.)?instagram\.com\/(reel|reels|p)\//i;
   const form = h("form.stack", {
@@ -392,7 +400,9 @@ function openManual(id) {
   const m = modal(`${tiktok ? "Finish in TikTok" : "Post by hand"}: ${reelTitle(p.reel_id)}`, [
     tiktok
       ? h("p", "This video was sent to TikTok as a draft. It is not public until someone posts it in the app.")
-      : h("p", "This cut is silent on purpose. The recitation is added in the Instagram app from its sound library, so no file we make contains recitation."),
+      : store.recitation()
+        ? h("p", "This cut is silent on purpose. The recitation is added in the Instagram app from its sound library, so no file we make contains recitation.")
+        : h("p", "This post goes up by hand in the Instagram app. Tick each step as you go, then paste the link back."),
     h("ul.checklist", boxes),
     form,
   ]);

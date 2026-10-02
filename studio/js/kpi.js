@@ -159,8 +159,8 @@ function normCdf(x) {
 
 export const KPI_BY_KEY = Object.fromEntries(KPIS.map((k) => [k.key, k]));
 
-/** Creative levers as stored on studio.reels. */
-export const LEVERS = [
+/** Creative levers as stored on studio.reels (Maana's set; see setLeverFields). */
+const DEFAULT_LEVERS = [
   { key: "hook_type", label: "Hook type" },
   { key: "format", label: "Format" },
   { key: "look", label: "Look" },
@@ -170,15 +170,42 @@ export const LEVERS = [
   { key: "lead", label: "Lead" },
   { key: "sound", label: "Sound" },
 ];
-
-/** Every dimension the dashboard can break down by. */
-export const DIMENSIONS = [
+const BASE_DIMENSIONS = [
   { key: "platform", label: "Platform" },
   { key: "post_type", label: "Post type" },
   { key: "batch", label: "Batch" },
   { key: "week", label: "Week" },
-  ...LEVERS,
 ];
+
+export let LEVERS = DEFAULT_LEVERS;
+/** Every dimension the dashboard can break down by. */
+export let DIMENSIONS = [...BASE_DIMENSIONS, ...LEVERS];
+/** Where each lever lives: "column" (studio.reels column) or "levers" (reels.levers jsonb). */
+let LEVER_STORE = {};
+
+/**
+ * Switches the levers to a workspace's set (studio.workspaces.levers.fields).
+ * Text levers (e.g. "word taught") are not grouped by; the length bucket is
+ * always offered. null restores Maana's default set.
+ */
+export function setLeverFields(fields) {
+  if (!Array.isArray(fields) || !fields.length) {
+    LEVERS = DEFAULT_LEVERS;
+    LEVER_STORE = {};
+  } else {
+    const list = fields.filter((f) => f.kind !== "text").map((f) => ({ key: f.key, label: f.label ?? f.key }));
+    const at = list.findIndex((f) => f.key === "voice");
+    list.splice(at >= 0 ? at + 1 : list.length, 0, { key: "length_bucket", label: "Length" });
+    LEVERS = list;
+    LEVER_STORE = Object.fromEntries(fields.map((f) => [f.key, f.store ?? "column"]));
+  }
+  DIMENSIONS = [...BASE_DIMENSIONS, ...LEVERS];
+}
+
+function reelLever(reel, key) {
+  if (LEVER_STORE[key] === "levers") return reel.levers?.[key];
+  return reel[key] ?? reel.levers?.[key];
+}
 
 /** Metrics offered on "what's winning" and experiments. */
 export const WIN_METRICS = ["hook_rate", "share_rate", "save_rate", "completion_rate", "installs_per_1k", "cpi"];
@@ -206,7 +233,7 @@ export function buildRows(posts, reels, latestFn, { includeEmpty = false } = {})
     r.batch = reel.batch ?? null;
     r.reel_title = reel.title ?? null;
     r.week = isoWeek(p.published_at);
-    for (const l of LEVERS) r[l.key] = leverValue(reel[l.key]);
+    for (const l of LEVERS) r[l.key] = leverValue(reelLever(reel, l.key));
     out.push(r);
   }
   return out;
