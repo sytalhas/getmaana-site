@@ -5,7 +5,7 @@
 // the reel has a post.
 
 import { h, clear, fmt, pill, statusKind, modal, PLATFORM_NAMES } from "../ui.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { cadenceStatus } from "../kpi.js";
 import { PLATFORM_COLORS, ensureStyle } from "../charts.js";
 
@@ -35,12 +35,12 @@ function openDetail(p) {
     h("dl.kv",
       h("dt", "Scheduled"), h("dd", p.scheduled_at ? fmt.dateTime(p.scheduled_at) : "Not scheduled"),
       h("dt", "Published"), h("dd", p.published_at ? fmt.dateTime(p.published_at) : "Not yet"),
-      exp ? [h("dt", "Experiment"), h("dd", h("a", { href: `#/experiments/${exp.id}`, onclick: () => m.close() }, exp.name), p.variant_label ? ` (variant ${p.variant_label})` : "")] : null,
+      exp ? [h("dt", "Experiment"), h("dd", h("a", { href: href(`experiments/${exp.id}`), onclick: () => m.close() }, exp.name), p.variant_label ? ` (variant ${p.variant_label})` : "")] : null,
       p.error ? [h("dt", "Error"), h("dd", { style: { color: "var(--red)" } }, p.error)] : null,
       p.caption ? [h("dt", "Caption"), h("dd", p.caption.length > 220 ? p.caption.slice(0, 220) + "..." : p.caption)] : null),
     h("div.row.end",
       p.platform_url ? h("a.btn.ghost", { href: p.platform_url, target: "_blank", rel: "noopener" }, "Open on platform") : null,
-      h("a.btn.primary", { href: `#/posts?post=${encodeURIComponent(p.id)}`, onclick: () => m.close() }, "Open in Posts")),
+      h("a.btn.primary", { href: href(`posts?post=${encodeURIComponent(p.id)}`), onclick: () => m.close() }, "Open in Posts")),
   ]);
 }
 
@@ -60,9 +60,13 @@ function item(p) {
 const STAGE_KIND = { agreed: "muted", writing: "info", filming: "info", drafted: "info", recorded: "info", spliced: "good", blocked: "bad" };
 
 function planned(r) {
-  const label = `${r.id.toUpperCase()} ${r.word_taught ?? ""}`.trim();
+  // Maana plans by the word taught; other workspaces show the title.
+  const title = String(r.title ?? "");
+  const extra = store.lever(r, "word_taught")
+    ?? (title.toLowerCase().startsWith(r.id.toLowerCase()) ? title.slice(r.id.length).trim() : title);
+  const label = `${r.id.toUpperCase()} ${extra ?? ""}`.trim();
   const stage = r.pipeline_status ?? r.status;
-  const go = () => { location.hash = `#/library?reel=${encodeURIComponent(r.id)}`; };
+  const go = () => { location.hash = href(`library?reel=${encodeURIComponent(r.id)}`); };
   return h("div.cal-item.planned", {
     role: "button", tabindex: 0,
     title: `Planned: ${r.title}. Stage: ${fmt.label(stage)}. No post yet.`,
@@ -96,7 +100,7 @@ export function render(root) {
   };
   const head = h("div.view-head",
     h("div", h("h1", "Calendar"), h("p", "Posts by scheduled or published time, planned videos from the content calendar, and the organic cadence for each week.")),
-    store.canEdit() ? h("a.btn.primary", { href: "#/launch" }, "Schedule a post") : null);
+    store.canEdit() ? h("a.btn.primary", { href: href("launch") }, "Schedule a post") : null);
   const nav = h("div.row", { style: { marginBottom: "12px" } },
     h("button.btn.ghost.small", { onclick: () => shift(-1), "aria-label": "Previous month" }, "Prev"),
     title,
@@ -159,7 +163,12 @@ export function render(root) {
       (min != null || max != null ? `, cadence ${min ?? 0} to ${max ?? "any"} per week` : ", no cadence set") +
       (st === "below" ? `. ${min - n} more to reach the minimum.` : st === "above" ? ". Above the recommended cadence." : ".") +
       (unscheduled ? ` ${unscheduled} draft${unscheduled === 1 ? " has" : "s have"} no time yet.` : "") +
-      (plannedThisWeek ? ` ${plannedThisWeek} planned video${plannedThisWeek === 1 ? "" : "s"} without a post.` : "")));
+      (plannedThisWeek ? ` ${plannedThisWeek} planned video${plannedThisWeek === 1 ? "" : "s"} without a post.` : "")),
+      !store.posts.size && !plannedByDay.size ? h("div.card.welcome.stack", { style: { marginBottom: "14px" } },
+        h("h3", { style: { margin: 0 } }, `Nothing on ${store.brand()}'s calendar yet`),
+        h("p", { style: { margin: 0 } }, "Two things show up here: videos planned on the content calendar (dashed, on their planned day) and posts once they are scheduled or published."),
+        store.canEdit() ? h("div.row", h("a.btn.primary.small", { href: href("launch") }, "Schedule a post"),
+          h("a.btn.ghost.small", { href: href("connections") }, "Connect accounts first")) : null) : null);
 
     // Month grid, Monday first, plus a cadence column.
     const start = mondayOf(first);

@@ -26,15 +26,28 @@ const CARDS = [
 
 export function render(root) {
   const owner = store.isOwner();
+  const brand = store.brand();
   const S = { adapters: null, adaptersError: null, busy: new Set(), draft: {}, open: {} };
   const grid = h("div.stack", { style: { gap: "16px" } });
+  const intro = h("div");
 
   clear(root,
     h("div.view-head", h("div", h("h1", "Connections"),
-      h("p", "Each platform needs the company's own developer app once. After that, connecting is one tap. Keys and tokens stay on the server."))),
+      h("p", `${brand}'s own accounts. Each platform needs ${brand}'s developer app once; after that, connecting is one tap. Keys and tokens stay on the server and are never shared with another workspace.`))),
     owner ? null : h("div.notice.info", { style: { marginBottom: "16px" } },
       "Only the owner can set up and connect accounts. You can see their health here."),
+    intro,
     grid);
+
+  // Nothing connected yet: say where to start.
+  function renderIntro() {
+    const any = [...store.connections.values()].some((c) => c.status !== "disconnected");
+    clear(intro, any ? null : h("section.card.welcome.stack", { style: { marginBottom: "16px" } },
+      h("h2", { style: { margin: 0 } }, `Connect ${brand}'s Instagram first`),
+      h("p", { style: { margin: 0 } }, owner
+        ? `Start with the Meta card below: it connects ${brand}'s Instagram (and its Facebook Page and ad account, if it has them). No Facebook Page? Open "Connect Instagram only" on that card. YouTube, TikTok and the App Store can follow any time.`
+        : `The owner connects ${brand}'s accounts here. Once Instagram is connected, posts and insights start to flow.`)));
+  }
 
   const conns = (p) => [...store.connections.values()].filter((c) => c.platform === p && c.status !== "disconnected");
 
@@ -121,7 +134,7 @@ export function render(root) {
           ? h("div.row",
             h("button.btn.coral", { disabled: busy, onclick: connectIgOnly },
               busy ? "Opening" : igLogin ? "Reconnect with Instagram" : "Connect with Instagram"),
-            h("span.hint", "Sign in with the Maana Instagram account."))
+            h("span.hint", `Sign in with the ${brand} Instagram account.`))
           : h("span.hint", "Save the Instagram app ID and secret to turn on Connect with Instagram.")));
   }
 
@@ -142,7 +155,7 @@ export function render(root) {
       "Nothing is deleted on the platform itself.",
     ], "Disconnect");
     if (!ok) return;
-    const { error } = await supa.from("connections").delete().eq("id", conn.id);
+    const { error } = await supa.from("connections").delete().eq("workspace_id", store.wsId).eq("id", conn.id);
     toast(error ? `Could not disconnect: ${error.message}` : "Disconnected", error ? "bad" : "good");
   }
 
@@ -271,6 +284,7 @@ export function render(root) {
     // Keep what the owner is typing: only rebuild when no key box has focus.
     const active = document.activeElement;
     if (active && grid.contains(active) && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+    renderIntro();
     clear(grid, CARDS.map(card));
   }
 

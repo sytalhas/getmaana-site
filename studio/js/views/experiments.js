@@ -5,7 +5,7 @@
 // Routes: #/experiments, #/experiments/new, #/experiments/<id>, #/experiments/<id>/edit
 
 import { h, clear, fmt, toast, pill, select, field, empty, confirmAction } from "../ui.js";
-import { store } from "../store.js";
+import { store, href } from "../store.js";
 import { supa, api } from "../supa.js";
 import { KPI_BY_KEY, LEVERS, WIN_METRICS, buildRows, compareVariants, sampleSizeFor } from "../kpi.js";
 import { kpiText, pText, progressBar, ensureStyle } from "../charts.js";
@@ -14,11 +14,12 @@ const KINDS = [["organic_ab", "Organic A/B"], ["ig_trial", "Instagram trial reel
 const KIND_LABEL = Object.fromEntries(KINDS);
 const UNITS = ["views", "impressions", "installs", "posts"];
 const METRICS = [...new Set(["hook_rate", "hold_rate", ...WIN_METRICS])];
-const LEVER_OPTS = [...LEVERS.map((l) => [l.key, l.label]), ["caption", "Caption"], ["cover", "Cover frame"], ["posting_time", "Posting time"], ["other", "Other"]];
+// Built per call: the levers depend on the open workspace (kpi.setLeverFields).
+const leverOpts = () => [...LEVERS.map((l) => [l.key, l.label]), ["caption", "Caption"], ["cover", "Cover frame"], ["posting_time", "Posting time"], ["other", "Other"]];
 const EXP_STATUS_KIND = { draft: "", running: "info", decided: "good", abandoned: "muted" };
 
 const expPill = (s) => pill(s, EXP_STATUS_KIND[s] ?? "");
-const leverLabel = (k) => LEVER_OPTS.find(([v]) => v === k)?.[1] ?? fmt.label(k);
+const leverLabel = (k) => leverOpts().find(([v]) => v === k)?.[1] ?? fmt.label(k);
 const reelTitle = (id) => (id ? `${id}${store.reels.get(id)?.title ? `: ${store.reels.get(id).title}` : ""}` : "No reel");
 
 function expRows(exp) {
@@ -63,7 +64,7 @@ export function render(root, { rest = [] } = {}) {
 function listView(root) {
   const head = h("div.view-head",
     h("div", h("h1", "Experiments"), h("p", "Pre-register the metric and minimum sample, then let the data decide.")),
-    store.canEdit() ? h("a.btn.primary", { href: "#/experiments/new" }, "New experiment") : null);
+    store.canEdit() ? h("a.btn.primary", { href: href("experiments/new") }, "New experiment") : null);
   const body = h("div");
   clear(root, head, body);
 
@@ -72,7 +73,7 @@ function listView(root) {
       (a.status === "running" ? 0 : a.status === "draft" ? 1 : 2) - (b.status === "running" ? 0 : b.status === "draft" ? 1 : 2) ||
       String(b.created_at).localeCompare(String(a.created_at)));
     if (!exps.length) {
-      clear(body, empty("No experiments yet.", store.canEdit() ? h("a.btn", { href: "#/experiments/new" }, "Pre-register the first one") : null));
+      clear(body, empty("No experiments yet.", store.canEdit() ? h("a.btn", { href: href("experiments/new") }, "Pre-register the first one") : null));
       return;
     }
     clear(body, h("div.table-wrap", h("table.data",
@@ -86,7 +87,7 @@ function listView(root) {
           ? `Decided: ${exp.decision_variant || "no winner"}`
           : exp.status === "abandoned" ? "Abandoned" : cmp.verdict;
         return h("tr",
-          h("td", h("a", { href: `#/experiments/${exp.id}` }, h("strong", exp.name))),
+          h("td", h("a", { href: href(`experiments/${exp.id}`) }, h("strong", exp.name))),
           h("td", KIND_LABEL[exp.kind] ?? exp.kind),
           h("td", leverLabel(exp.lever)),
           h("td", KPI_BY_KEY[exp.metric]?.label ?? exp.metric),
@@ -106,8 +107,8 @@ function listView(root) {
 
 function formView(root, id) {
   const exp = id ? store.experiments.get(id) : null;
-  if (id && !exp) { clear(root, empty("This experiment does not exist or was deleted.", h("a.btn", { href: "#/experiments" }, "All experiments"))); return; }
-  if (!store.canEdit()) { clear(root, empty("Viewers can read experiments but not edit them.", h("a.btn", { href: "#/experiments" }, "All experiments"))); return; }
+  if (id && !exp) { clear(root, empty("This experiment does not exist or was deleted.", h("a.btn", { href: href("experiments") }, "All experiments"))); return; }
+  if (!store.canEdit()) { clear(root, empty("Viewers can read experiments but not edit them.", h("a.btn", { href: href("experiments") }, "All experiments"))); return; }
   const locked = exp && exp.status !== "draft";
   const dis = locked ? { disabled: true } : {};
   const v = exp ?? { kind: "organic_ab", metric: "hook_rate", sample_unit: "views", lever: "hook_type",
@@ -115,7 +116,7 @@ function formView(root, id) {
 
   const name = h("input", { value: v.name ?? "", required: true, maxlength: 120, ...dis });
   const hypothesis = h("textarea", { required: true, placeholder: "If we open on a question instead of a statement, hook rate rises, because ...", ...dis }, v.hypothesis ?? "");
-  const lever = select(LEVER_OPTS, v.lever, dis);
+  const lever = select(leverOpts(), v.lever, dis);
   const kind = select(KINDS, v.kind, dis);
   const metric = select(METRICS.map((k) => [k, KPI_BY_KEY[k].label]), v.metric, dis);
   const minSample = h("input", { type: "number", min: 1, step: 1, value: v.min_sample ?? "", required: true, ...dis });
@@ -163,7 +164,7 @@ function formView(root, id) {
       if (locked) {
         await update(exp.id, notesPatch(exp, notes.value));
         toast("Notes saved", "good");
-        location.hash = `#/experiments/${exp.id}`;
+        location.hash = href(`experiments/${exp.id}`);
         return;
       }
       const variants = [...variantsEl.children].map((r) => ({
@@ -190,7 +191,7 @@ function formView(root, id) {
       if (exp) saved = await update(exp.id, { ...payload, ...notesPatch(exp, notes.value) });
       else {
         const { data, error } = await supa.from("experiments")
-          .insert({ ...payload, status: "draft", created_by: await userId(), platform_ref: notes.value ? { notes: notes.value } : {} })
+          .insert({ ...payload, workspace_id: store.wsId, status: "draft", created_by: await userId(), platform_ref: notes.value ? { notes: notes.value } : {} })
           .select().single();
         if (error) throw new Error(error.message);
         saved = data;
@@ -198,7 +199,7 @@ function formView(root, id) {
         store.emit("experiments");
       }
       toast("Experiment saved as a draft", "good");
-      location.hash = `#/experiments/${saved.id}`;
+      location.hash = href(`experiments/${saved.id}`);
     } catch (err) {
       toast(err.message, "bad");
     } finally {
@@ -217,7 +218,7 @@ function formView(root, id) {
       onclick: () => variantsEl.append(variantRow({ label: String.fromCharCode(65 + variantsEl.children.length) })) }, "Add variant")),
   h("div.grid.cols-3", field("Starts", starts), field("Ends", ends)),
   field("Notes", notes),
-  h("div.row.end", h("a.btn.ghost", { href: exp ? `#/experiments/${exp.id}` : "#/experiments" }, "Cancel"),
+  h("div.row.end", h("a.btn.ghost", { href: exp ? href(`experiments/${exp.id}`) : href("experiments") }, "Cancel"),
     h("button.btn.primary", { type: "submit" }, locked ? "Save notes" : "Save draft")));
 
   clear(root, h("div.view-head", h("div", h("h1", exp ? `Edit: ${exp.name}` : "New experiment"),
@@ -245,9 +246,9 @@ function detailView(root, id) {
 
   function drawHead(exp) {
     clear(headEl, h("div.view-head",
-      h("div", h("p.small", h("a", { href: "#/experiments" }, "All experiments")),
+      h("div", h("p.small", h("a", { href: href("experiments") }, "All experiments")),
         h("h1", exp.name), h("div.row", expPill(exp.status), pill(KIND_LABEL[exp.kind] ?? exp.kind, "info"))),
-      store.canEdit() && exp.status === "draft" ? h("a.btn", { href: `#/experiments/${exp.id}/edit` }, "Edit pre-registration") : null));
+      store.canEdit() && exp.status === "draft" ? h("a.btn", { href: href(`experiments/${exp.id}/edit`) }, "Edit pre-registration") : null));
   }
 
   function drawPrereg(exp) {
@@ -333,7 +334,7 @@ function detailView(root, id) {
       for (const v of exp.variants ?? []) {
         if (!v.reel_id) continue;
         const q = new URLSearchParams({ reel: v.reel_id, type, experiment: exp.id, variant: v.label });
-        launch.push(h("a.btn" + (exp.kind === "ig_trial" ? ".coral" : ""), { href: `#/launch?${q}` },
+        launch.push(h("a.btn" + (exp.kind === "ig_trial" ? ".coral" : ""), { href: href(`launch?${q}`) },
           exp.kind === "ig_trial" ? `Launch ${v.label} as a trial reel` : `Launch ${v.label}`));
       }
     }
@@ -437,7 +438,7 @@ function detailView(root, id) {
 
   function draw() {
     const exp = store.experiments.get(id);
-    if (!exp) { clear(root, empty("This experiment does not exist or was deleted.", h("a.btn", { href: "#/experiments" }, "All experiments"))); return; }
+    if (!exp) { clear(root, empty("This experiment does not exist or was deleted.", h("a.btn", { href: href("experiments") }, "All experiments"))); return; }
     drawHead(exp);
     drawPrereg(exp);
     drawCompare(exp);
