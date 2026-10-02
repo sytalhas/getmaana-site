@@ -116,7 +116,8 @@ table.data td.num { white-space: nowrap; }
 .conf-suggestive { background: var(--blue-bg); color: var(--blue); }
 .row-thin td { color: var(--ink-3); }
 .cal-wrap .cal { grid-template-columns: repeat(7, minmax(0, 1fr)) 64px; }
-.cal-week { display: flex; align-items: center; justify-content: center; }
+.cal-week { display: flex; align-items: center; justify-content: center; text-align: center; }
+.cal-week .pill { white-space: normal; line-height: 1.25; padding: 2px 6px; }
 .cal-item { border-left: 3px solid transparent; font-size: 11px; }
 .cal-item .pill { font-size: 10px; padding: 0 5px; margin-left: 4px; }
 .cal-list { display: none; }
