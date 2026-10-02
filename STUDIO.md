@@ -65,6 +65,10 @@ python3 marketing/studio/import_library.py --upload   # uploads changed files + 
 
 Then press **Sync library** in Studio. Hand-edited levers are never overwritten. Batch 3 folders are picked up automatically when `<id>.mp4` lands.
 
+### Content calendar
+
+Planned videos come from the maana repo's `marketing/content/CALENDAR.md`. Run `python3 marketing/pipeline/studio_calendar_sync.py --apply` (the `/marketing*` skills run it for you). It pushes each row from `agreed` onwards into `studio.reels`, using the calendar id (t-006) as the reel id. It sets `planned_for` and `pipeline_status`, and moves `status` only forward (idea, then in_production, then ready). It never touches a reel that is scheduled, live, shelved or retired. It also pulls post times and live status back into the file. The Calendar view shows a planned reel as a dashed "Plan" chip on its `planned_for` day until the reel has a post. Needs migration `20261001120000_studio_planned.sql`.
+
 ### Token refresh
 
 | Platform | Token | Refresh |

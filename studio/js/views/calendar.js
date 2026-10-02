@@ -1,5 +1,8 @@
 // Calendar: every post by its scheduled or published time, coloured by
 // platform, with the organic cadence per week checked against settings.
+// Planned videos (reels.planned_for, pushed from the repo's content calendar by
+// marketing/pipeline/studio_calendar_sync.py) show on their planned day until
+// the reel has a post.
 
 import { h, clear, fmt, pill, statusKind, modal, PLATFORM_NAMES } from "../ui.js";
 import { store } from "../store.js";
@@ -54,6 +57,20 @@ function item(p) {
   }, `${t.getHours()}:${pad(t.getMinutes())} ${label}`, pill(p.status, statusKind(p.status)));
 }
 
+const STAGE_KIND = { agreed: "muted", writing: "info", filming: "info", drafted: "info", recorded: "info", spliced: "good", blocked: "bad" };
+
+function planned(r) {
+  const label = `${r.id.toUpperCase()} ${r.word_taught ?? ""}`.trim();
+  const stage = r.pipeline_status ?? r.status;
+  const go = () => { location.hash = `#/library?reel=${encodeURIComponent(r.id)}`; };
+  return h("div.cal-item.planned", {
+    role: "button", tabindex: 0,
+    title: `Planned: ${r.title}. Stage: ${fmt.label(stage)}. No post yet.`,
+    onclick: go,
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } },
+  }, `Plan ${label}`, pill(stage, STAGE_KIND[stage] ?? "muted"));
+}
+
 function weekBadge(count, cadence, weekStartDate, today) {
   const st = cadenceStatus(count, cadence);
   const min = cadence?.organic_per_week_min, max = cadence?.organic_per_week_max;
@@ -78,7 +95,7 @@ export function render(root) {
     draw();
   };
   const head = h("div.view-head",
-    h("div", h("h1", "Calendar"), h("p", "Posts by scheduled or published time, with the organic cadence for each week.")),
+    h("div", h("h1", "Calendar"), h("p", "Posts by scheduled or published time, planned videos from the content calendar, and the organic cadence for each week.")),
     store.canEdit() ? h("a.btn.primary", { href: "#/launch" }, "Schedule a post") : null);
   const nav = h("div.row", { style: { marginBottom: "12px" } },
     h("button.btn.ghost.small", { onclick: () => shift(-1), "aria-label": "Previous month" }, "Prev"),
@@ -89,7 +106,8 @@ export function render(root) {
   const grid = h("div.cal-wrap");
   const list = h("div.cal-list");
   const legend = h("div.legend.section", Object.entries(PLATFORM_COLORS).map(([k, c]) =>
-    h("span", h("i", { style: { background: c.bg, border: `2px solid ${c.ink}` } }), PLATFORM_NAMES[k] ?? k)));
+    h("span", h("i", { style: { background: c.bg, border: `2px solid ${c.ink}` } }), PLATFORM_NAMES[k] ?? k)),
+    h("span", h("i", { style: { background: "transparent", border: "2px dashed var(--ink-3)" } }), "Planned (content calendar)"));
   clear(root, head, summary, nav, grid, list, legend);
 
   function draw() {
@@ -117,6 +135,20 @@ export function render(root) {
     }
     for (const arr of byDay.values()) arr.sort((a, b) => String(whenOf(a)).localeCompare(String(whenOf(b))));
 
+    // Planned videos with no post yet, on their planned day (a plain date, no time zone).
+    const posted = new Set([...store.posts.values()].filter((p) => !SKIP.has(p.status)).map((p) => p.reel_id));
+    const plannedByDay = new Map();
+    let plannedThisWeek = 0;
+    for (const r of store.reels.values()) {
+      if (!r.planned_for || posted.has(r.id) || ["shelved", "retired"].includes(r.status)) continue;
+      const k = String(r.planned_for).slice(0, 10);
+      if (!plannedByDay.has(k)) plannedByDay.set(k, []);
+      plannedByDay.get(k).push(r);
+      const [py, pm, pd] = k.split("-").map(Number);
+      if (dayKey(mondayOf(new Date(py, pm - 1, pd))) === dayKey(mondayOf(today))) plannedThisWeek += 1;
+    }
+    for (const arr of plannedByDay.values()) arr.sort((a, b) => a.id.localeCompare(b.id));
+
     // This week's cadence, at the top.
     const thisWeek = dayKey(mondayOf(today));
     const n = organicByWeek.get(thisWeek) ?? 0;
@@ -126,7 +158,8 @@ export function render(root) {
       `This week: ${n} organic post${n === 1 ? "" : "s"} published or scheduled` +
       (min != null || max != null ? `, cadence ${min ?? 0} to ${max ?? "any"} per week` : ", no cadence set") +
       (st === "below" ? `. ${min - n} more to reach the minimum.` : st === "above" ? ". Above the recommended cadence." : ".") +
-      (unscheduled ? ` ${unscheduled} draft${unscheduled === 1 ? " has" : "s have"} no time yet.` : "")));
+      (unscheduled ? ` ${unscheduled} draft${unscheduled === 1 ? " has" : "s have"} no time yet.` : "") +
+      (plannedThisWeek ? ` ${plannedThisWeek} planned video${plannedThisWeek === 1 ? "" : "s"} without a post.` : "")));
 
     // Month grid, Monday first, plus a cadence column.
     const start = mondayOf(first);
@@ -142,7 +175,7 @@ export function render(root) {
         const posts = byDay.get(k) ?? [];
         cells.push(h("div.cal-day" + (k === todayKey ? ".today" : "") + (d.getMonth() !== m - 1 ? ".other" : ""),
           h("span.small", { style: { fontWeight: 800, color: "var(--ink-2)" } }, String(d.getDate())),
-          posts.map(item)));
+          posts.map(item), (plannedByDay.get(k) ?? []).map(planned)));
       }
       cells.push(h("div.cal-week", weekBadge(organicByWeek.get(dayKey(wk)) ?? 0, cadence, dayKey(wk), thisWeek)));
     }
@@ -154,9 +187,10 @@ export function render(root) {
       for (let i = 0; i < 7; i++) {
         const d = addDays(wk, i);
         const posts = byDay.get(dayKey(d)) ?? [];
-        if (posts.length) days.push(h("div.day",
+        const plans = plannedByDay.get(dayKey(d)) ?? [];
+        if (posts.length || plans.length) days.push(h("div.day",
           h("div.day-label", d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })),
-          h("div.day-items", posts.map(item))));
+          h("div.day-items", posts.map(item), plans.map(planned))));
       }
       return h("div.card",
         h("div.row.between", h("strong", `Week of ${wk.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`),

@@ -176,6 +176,7 @@ dialog.modal::backdrop { background: rgba(14, 31, 61, .45); }
 .cal-day.today { border-color: var(--coral); }
 .cal-day.other { opacity: .5; }
 .cal-item { border-radius: 6px; padding: 2px 6px; background: var(--paper-2); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-item.planned { background: transparent; border: 1px dashed var(--ink-3); color: var(--ink-2); }
 
 /* connections setup */
 .setup-panel { border: 1px dashed var(--line); border-radius: 10px; padding: 14px; background: var(--paper); }
