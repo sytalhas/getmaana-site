@@ -8,6 +8,7 @@ import {
   h, clear, toast, modal, confirmAction, fmt, pill, statusKind, field, select, empty, downloadFile, PLATFORM_NAMES,
 } from "../ui.js";
 import { POST_PLATFORMS, reelTitle, mergedLatest, fileName, copyText, METRIC_FIELDS, sortReels } from "./_reel.js";
+import { mediaLink } from "../media.js";
 
 const STATUSES = ["draft", "scheduled", "publishing", "awaiting_manual", "inbox_draft", "private_until_audit", "live", "failed", "cancelled"];
 const PLATFORMS = [...POST_PLATFORMS, "meta_ads"];
@@ -346,7 +347,7 @@ function openManual(id) {
     ]
     : [
       ["download", h("span", "Download the silent cut: ",
-        asset?.url ? h("a", { href: asset.url, download: fileName(asset), target: "_blank", rel: "noopener" }, fileName(asset)) : "no media URL yet",
+        asset?.url ? mediaLink(h("a", { download: fileName(asset), target: "_blank", rel: "noopener" }, fileName(asset)), asset.url) : "no media URL yet",
         ". Save it to the phone that posts to the Instagram account.")],
       ["create", "In Instagram, tap +, then Reel, and pick that file."],
       ["sound", store.recitation()

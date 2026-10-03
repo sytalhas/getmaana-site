@@ -11,6 +11,7 @@
 import { supa } from "./supa.js";
 import { store, loadWorkspaces, openWorkspace, href } from "./store.js";
 import { h, clear, toast, fmt } from "./ui.js";
+import { mediaSrc } from "./media.js";
 
 const VIEWS = [
   { key: "dashboard", label: "Dashboard", module: "./views/dashboard.js" },
@@ -96,7 +97,7 @@ function applyTheme(ws) {
 
 function logo(ws, cls = "") {
   return ws?.logo_url
-    ? h(`img.ws-logo${cls}`, { src: ws.logo_url, alt: "" })
+    ? mediaSrc(h(`img.ws-logo${cls}`, { alt: "" }), ws.logo_url)
     : h(`span.ws-logo.ws-mono${cls}`, (ws?.short_name ?? ws?.name ?? "?").slice(0, 1));
 }
 

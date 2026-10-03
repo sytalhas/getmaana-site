@@ -10,6 +10,7 @@ import {
   POST_PLATFORMS, sortReels, reelVideos, reelPoster, reelTitle, fileName, flagText, isBlockingFlag,
   charCounter, hashtagCount, limitLines, copyText,
 } from "./_reel.js";
+import { mediaSrc, showsMedia } from "../media.js";
 
 const LIMITS = {
   instagram: { caption: 2200, hashtags: 30 },
@@ -105,16 +106,18 @@ export function render(root, { params = {} } = {}) {
       ["shelved", "retired"].includes(r.status)
         ? h("div.notice.bad", `This reel is ${r.status}. Pre-flight will block it until its status changes in the Library.`) : null,
       flags.map((f) => h(`div.notice${isBlockingFlag(f) ? ".bad" : ""}`, { style: { fontSize: "13px" } }, flagText(f))),
-      !asset()?.url && poster ? h("img.reel-thumb", { src: poster, alt: "" }) : null);
+      !asset()?.url && poster ? mediaSrc(h("img.reel-thumb", { alt: "" }), poster) : null);
   }
 
   function onAsset() {
     const a = asset();
     const src = a?.url ?? "";
-    if (vid.getAttribute("src") !== src) {
-      if (src) vid.src = src; else vid.removeAttribute("src");
-      vid.poster = reelPoster(reel()) ?? "";
-      vid.load?.();
+    if (!showsMedia(vid, src)) {
+      // Library files load through short-lived signed links (media.js); the
+      // src lands once the link is back, and loadeddata then draws the covers.
+      mediaSrc(vid, src);
+      mediaSrc(vid, reelPoster(reel()), "poster");
+      if (!src) vid.load?.();
     }
     show(vidWrap, !!src);
     for (const c of cards) syncCard(c);
@@ -159,6 +162,7 @@ export function render(root, { params = {} } = {}) {
     pump();
   }
   vid.addEventListener("seeked", onSeeked);
+  vid.addEventListener("loadeddata", pump);
   vid.addEventListener("loadedmetadata", () => {
     const max = Math.round((vid.duration || Number(asset()?.duration_s) || 0) * 1000);
     for (const c of cards) c.cover.max = String(Math.max(0, max));

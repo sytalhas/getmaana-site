@@ -4,6 +4,7 @@
 import { supa } from "../supa.js";
 import { store, href } from "../store.js";
 import { h, clear, toast, modal, fmt, pill, statusKind, field, select, PLATFORM_NAMES } from "../ui.js";
+import { mediaSrc, mediaLink } from "../media.js";
 
 // Reel statuses (same for every workspace). Lever vocabularies come from the
 // open workspace (studio.workspaces.levers), which the database enforces.
@@ -305,7 +306,7 @@ export function openReel(reelId) {
       const poster = reelPoster(reel);
       clear(videosBox, videos.length ? videos.map((v) => h("figure", { style: { margin: 0 } },
         v.url
-          ? h("video.reel-thumb", { src: v.url, controls: true, playsinline: true, preload: "metadata", poster: poster ?? null })
+          ? mediaSrc(mediaSrc(h("video.reel-thumb", { controls: true, playsinline: true, preload: "metadata" }), v.url), poster, "poster")
           : h("div.reel-thumb.empty", { style: { display: "grid", placeItems: "center" } }, "No media URL yet"),
         h("figcaption.small.muted", { style: { marginTop: "4px" } },
           h("strong", v.variant), ` · ${fmt.sec(num(v.duration_s))}`,
@@ -317,7 +318,7 @@ export function openReel(reelId) {
     clear(filesBox, assets.length ? h("div.table-wrap", h("table.data",
       h("thead", h("tr", ["File", "Kind", "Variant", "Size", "Duration", "Frame", "Audio", "Manual audio"].map((t) => h("th", t)))),
       h("tbody", assets.map((a) => h("tr",
-        h("td", a.url ? h("a", { href: a.url, target: "_blank", rel: "noopener" }, fileName(a)) : fileName(a)),
+        h("td", a.url ? mediaLink(h("a", { target: "_blank", rel: "noopener" }, fileName(a)), a.url) : fileName(a)),
         h("td", a.kind), h("td", a.variant),
         h("td.num", fmtBytes(a.bytes)),
         h("td.num", a.duration_s != null ? fmt.sec(num(a.duration_s)) : "–"),

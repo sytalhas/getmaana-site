@@ -12,7 +12,7 @@ The marketing command centre for **Maana** and **Mawadda**: library of reels, la
 | Scheduling | `pg_cron` job `studio-worker` (every minute) | Calls `studio.kick_worker()`, which only wakes the worker when a job is due. `studio-health` runs daily at 06:17 UTC. |
 | Realtime | Supabase Realtime on the `studio` tables | Every teammate sees status, metrics and experiment changes without a refresh. The green dot in the sidebar shows the live connection. |
 | Tokens | Supabase Vault (`studio.secret_put` / `secret_get`, service role only) and Edge Function secrets | Tokens never reach the browser. `studio.connections` holds health only. |
-| Videos | GitHub Release `library` in the public repo `sytalhas/maana-media` | Free, 2 GB per file. Supabase stores only URLs. Uploaded by `maana/marketing/studio/import_library.py --upload`. |
+| Videos | GitHub Release `library` in the repo `sytalhas/maana-media` (can be private) | Free, 2 GB per file. Supabase stores only URLs. Uploaded by `maana/marketing/studio/import_library.py --upload`. The functions read it with the `GITHUB_MEDIA_TOKEN` secret; the web app loads posters, videos and downloads through `studio/js/media.js`, which swaps release URLs for short-lived signed links from `POST /media-links` (and keeps the original URL if that route or the token is missing). See `STUDIO_PRIVATE_MEDIA_DEPLOY.md`. |
 
 ### Workspaces
 

@@ -7,6 +7,7 @@ import { h, clear, toast, fmt, pill, statusKind, field, select, empty } from "..
 import {
   leverLabel, leverOptions, sortReels, reelPoster, reelVideos, reelPosts, flagText, isBlockingFlag, openReel, choiceLevers,
 } from "./_reel.js";
+import { mediaSrc } from "../media.js";
 
 export function render(root, { params = {} } = {}) {
   // Filters: batch, status, then every choice lever of this workspace.
@@ -116,7 +117,7 @@ export function render(root, { params = {} } = {}) {
       onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } },
     },
     poster
-      ? h("img.reel-thumb", { src: poster, alt: "", loading: "lazy" })
+      ? mediaSrc(h("img.reel-thumb", { alt: "", loading: "lazy" }), poster)
       : h("div.reel-thumb", { style: { display: "grid", placeItems: "center", color: "var(--ink-3)" } }, "No poster"),
     h("div.row.between", h("span.small.muted", `${r.id.toUpperCase()} · ${fmt.label(r.batch)}`), pill(r.status, statusKind(r.status))),
     h("h3", r.title),
