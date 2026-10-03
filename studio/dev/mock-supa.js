@@ -8,6 +8,8 @@
 //   role=owner|editor|viewer   the signed-in person's role (in every workspace they belong to)
 //   member=all|maana|mawadda   which workspaces they belong to (default all)
 //   mawadda=empty              a brand-new Mawadda workspace (no reels, posts, connections, settings)
+//   media=private              library URLs look like private GitHub release URLs; POST /media-links
+//                              "signs" them back to the local files (otherwise it echoes each URL)
 
 const qs = new URLSearchParams(location.search);
 const ROLE = qs.get("role") ?? "owner";
@@ -17,7 +19,10 @@ const EMAIL = MEMBER === "mawadda"
   ? "yhammad77@outlook.com"
   : { owner: "sytalhas@gmail.com", editor: "editor@getmaana.com", viewer: "viewer@getmaana.com" }[ROLE];
 const UID = "00000000-0000-4000-8000-00000000000" + ({ owner: 1, editor: 2, viewer: 3 }[ROLE] ?? 9);
-const MEDIA = new URL("../../maana/marketing/", document.baseURI).href;
+const LOCAL_MEDIA = new URL("../../maana/marketing/", document.baseURI).href;
+const PRIVATE_MEDIA = qs.get("media") === "private";
+const RELEASE_MEDIA = "https://github.com/sytalhas/maana-media/releases/download/library/";
+const MEDIA = PRIVATE_MEDIA ? RELEASE_MEDIA : LOCAL_MEDIA;
 
 const now = Date.now();
 const iso = (ms) => new Date(ms).toISOString();
@@ -539,6 +544,14 @@ export async function api(path, body = {}, method = "POST") {
       throw Object.assign(new Error(`${brand} has no media library source yet. Plan videos on the content calendar for now; the owner can add a library source later.`), { status: 409 });
     }
     return { reels: reels.filter((r) => r.workspace_id === apiWorkspace).length, assets: assets.length, notes: ["batch3/c2-with: no render yet"] };
+  }
+  if (path === "media-links") {
+    // The real route returns short-lived signed GitHub URLs; the mock echoes,
+    // or maps the fake release URLs back to local files with media=private.
+    window.__mockMediaLinks = (window.__mockMediaLinks ?? 0) + 1;
+    const links = Object.fromEntries((body.urls ?? []).map((u) => [u,
+      PRIVATE_MEDIA && u.startsWith(RELEASE_MEDIA) ? `${LOCAL_MEDIA}${u.slice(RELEASE_MEDIA.length)}?sig=mock` : u]));
+    return { links, expires_in_s: 300 };
   }
   if (path === "sync") return { queued: body.post_id ? 1 : posts.filter((p) => p.status === "live" && p.workspace_id === apiWorkspace).length };
   if (path.startsWith("health/")) return { results: conns.filter((c) => c.workspace_id === apiWorkspace && c.platform === path.split("/")[1]).map((c) => ({ id: c.id, status: c.status, last_error: c.last_error })) };
