@@ -9,6 +9,7 @@ import {
 } from "../ui.js";
 import { POST_PLATFORMS, reelTitle, mergedLatest, fileName, copyText, METRIC_FIELDS, sortReels } from "./_reel.js";
 import { mediaLink } from "../media.js";
+import { carouselPanel, carouselSteps, isCarousel, MANUAL_QUALITY, slidesOf } from "./_carousel.js";
 
 const STATUSES = ["draft", "scheduled", "publishing", "awaiting_manual", "inbox_draft", "private_until_audit", "live", "failed", "cancelled"];
 const PLATFORMS = [...POST_PLATFORMS, "meta_ads"];
@@ -88,7 +89,8 @@ export function render(root, { params = {} } = {}) {
         : h("span.muted", fmt.dateTime(p.created_at));
     return h("tr",
       h("td", { style: { minWidth: "120px" } }, h("a", { href: href(`library?reel=${encodeURIComponent(p.reel_id)}`) }, p.reel_id.toUpperCase()),
-        h("div.small.muted", store.reels.get(p.reel_id)?.title ?? "")),
+        h("div.small.muted", store.reels.get(p.reel_id)?.title ?? ""),
+        isCarousel(p) ? h("span.pill.small", `carousel · ${slidesOf(p).length} slides`) : null),
       h("td", PLATFORM_NAMES[p.platform] ?? p.platform),
       h("td", fmt.label(p.post_type)),
       h("td", fmt.label(p.method)),
@@ -195,7 +197,7 @@ function openDetail(id) {
         ? h("div.notice", "YouTube keeps uploads from unaudited API projects private until Google's audit passes. The owner can apply from Connections.") : null,
       h("div.grid.cols-3",
         kv("Reel", h("a", { href: href(`library?reel=${encodeURIComponent(p.reel_id)}`) }, reelTitle(p.reel_id))),
-        kv("File", a ? fileName(a) : "–"),
+        kv("File", isCarousel(p) ? `${slidesOf(p).length} slides, ${a?.width ?? "?"}x${a?.height ?? "?"} JPEG` : a ? fileName(a) : "–"),
         kv("Scheduled", fmt.dateTime(p.scheduled_at)),
         kv("Published", fmt.dateTime(p.published_at)),
         kv("Confirmed", p.confirmed_at ? fmt.dateTime(p.confirmed_at) : "not yet"),
@@ -207,6 +209,7 @@ function openDetail(id) {
         kv("Next sync", fmt.dateTime(p.next_sync_at))),
       p.caption ? h("details", h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, "Caption"),
         h("pre", p.caption), h("button.btn.small.ghost", { onclick: () => copyText(p.caption, "Caption") }, "Copy caption")) : null,
+      isCarousel(p) ? carouselPanel(p) : null,
       h("h3", "Pre-flight"),
       pf ? h("div.stack", { style: { gap: "4px" } },
         h("div.row", pf.ok ? pill("passed", "good") : pill("blocked", "bad"), h("span.small.muted", `checked ${fmt.ago(pf.checked_at)}`)),
@@ -250,7 +253,7 @@ function openDetail(id) {
     h("h3", "Metrics history"), history,
     canEdit ? manualMetricsForm(id) : null,
   ], { wide: true, onClose: () => off() });
-  const off = store.on((t) => { if (["posts", "jobs", "metrics_snapshots", "assets", "*"].includes(t)) renderLive(); });
+  const off = store.on((t) => { if (["posts", "jobs", "metrics_snapshots", "assets", "reels", "*"].includes(t)) renderLive(); });
   renderLive();
   return m;
 }
@@ -277,7 +280,9 @@ function draftActions(p) {
     onclick: async () => {
       const a = p.asset_id ? store.assets.get(p.asset_id) : null;
       const yes = await confirmAction(`Launch ${p.reel_id.toUpperCase()} on ${PLATFORM_NAMES[p.platform]}?`, [
-        `Reel: ${reelTitle(p.reel_id)}. File: ${a ? fileName(a) : "none"}.`,
+        isCarousel(p)
+          ? `Carousel: ${reelTitle(p.reel_id)}, ${slidesOf(p).length} slides. Sound: ${p.options?.audio?.choice?.label ?? "none"}.`
+          : `Reel: ${reelTitle(p.reel_id)}. File: ${a ? fileName(a) : "none"}.`,
         `${PLATFORM_NAMES[p.platform]}: ${fmt.label(p.post_type)}, ${p.method === "manual" ? "posted by hand from the checklist" : p.method === "inbox_draft" ? "sent to the TikTok inbox as a draft" : "published with the API"}, caption ${(p.caption ?? "").length} characters.`,
         p.scheduled_at && new Date(p.scheduled_at) > new Date() ? `When: ${fmt.dateTime(p.scheduled_at)}.` : "When: now.",
       ], "Launch");
@@ -337,8 +342,9 @@ function openManual(id) {
 
   const copyCaption = h("button.btn.small.ghost", { onclick: () => copyText(p.caption, "Caption") }, "Copy caption");
   const posting = reel?.folder ? `marketing/${reel.folder}/POSTING.md` : "the reel's POSTING.md";
-  const steps = tiktok
+  const steps = isCarousel(p) ? carouselSteps(p, copyCaption) : tiktok
     ? [
+      ["quality", MANUAL_QUALITY.tiktok],
       ["inbox", "Open the TikTok app and tap the inbox notification: the video is waiting as a draft."],
       ["caption", h("span", "Paste the caption. ", copyCaption)],
       ["cover", "Pick the cover frame and check the sound: no music."],
@@ -346,6 +352,7 @@ function openManual(id) {
       ["bio", "Make sure the bio link carries this post's campaign link once the app is live."],
     ]
     : [
+      ["quality", MANUAL_QUALITY.instagram],
       ["download", h("span", "Download the silent cut: ",
         asset?.url ? mediaLink(h("a", { download: fileName(asset), target: "_blank", rel: "noopener" }, fileName(asset)), asset.url) : "no media URL yet",
         ". Save it to the phone that posts to the Instagram account.")],
@@ -376,6 +383,7 @@ function openManual(id) {
   const url = h("input", { type: "url", placeholder: tiktok ? `https://www.tiktok.com/${ttHandle}/video/...` : "https://www.instagram.com/reel/..." });
   const attach = h("button.btn.primary", { type: "submit" }, "Attach and start syncing");
   const pattern = tiktok ? /^https:\/\/(www\.|vm\.)?tiktok\.com\//i : /^https:\/\/(www\.)?instagram\.com\/(reel|reels|p)\//i;
+  const n = steps.length + 1;
   const form = h("form.stack", {
     onsubmit: async (e) => {
       e.preventDefault();
@@ -394,12 +402,16 @@ function openManual(id) {
       }
     },
   },
-  field(tiktok ? "6. Paste the TikTok link here" : "6. Paste the Instagram permalink here", url,
+  field(tiktok ? `${n}. Paste the TikTok link here` : `${n}. Paste the Instagram permalink here`, url,
     "Studio finds the post by this link, marks it live and pulls its insights like any other post."),
   h("div.row.end", attach));
 
   const m = modal(`${tiktok ? "Finish in TikTok" : "Post by hand"}: ${reelTitle(p.reel_id)}`, [
-    tiktok
+    isCarousel(p)
+      ? h("p", tiktok
+        ? "These slides were sent to TikTok as a photo draft. Add the sound in TikTok (its API cannot) and post it there."
+        : "This carousel goes up by hand because its sound can only be added in the Instagram app. Tick each step as you go, then paste the link back.")
+      : tiktok
       ? h("p", "This video was sent to TikTok as a draft. It is not public until someone posts it in the app.")
       : store.recitation()
         ? h("p", "This cut is silent on purpose. The recitation is added in the Instagram app from its sound library, so no file we make contains recitation.")

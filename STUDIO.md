@@ -27,12 +27,36 @@ The marketing command centre for **Maana** and **Mawadda**: library of reels, la
 - **Levers.** The reel editor, Library filters, Dashboard breakdowns, What's winning and Experiments use `workspaces.levers.fields` (`store: "column"` reads the `studio.reels` column, `store: "levers"` reads `reels.levers` jsonb) and the vocabularies in `levers.vocab`, which the database also enforces. Maana-only concepts (recitation added in the Instagram app) show only when `preflight.recitation_rules` is on.
 - **New workspace.** Dashboard, Library, Calendar, Posts and Connections show first-run guidance ("Connect Mawadda's Instagram first") until the workspace has content.
 
+### Carousels from the post generator ("Send to Studio")
+
+content-creator's Post generator sends a checked carousel to its own brand's workspace as draft posts, one per
+platform (Instagram, TikTok, Facebook; YouTube has no API for image posts). studio-api `POST /drafts` (editor)
+validates the `studio-draft/1` package (`_shared/drafts.ts`: same brand as the workspace, slides only from the
+workspace's `media_release`, per-platform slide rules in `carousel.ts`, the brand audio policy in `audio.ts`), stores
+the reel (`reels.package`: source run, gate report, credits), one `image_set` asset per slide size (`assets.items`)
+and the drafts (`posts.format = 'carousel'`, `options.audio`), then runs pre-flight. Nothing is confirmed: Launch
+works as for any draft. Publishing: Instagram carousel containers, Facebook multi-photo posts, TikTok photo posts
+pulled from signed links under the verified prefix `studio-api/m/` (inbox by default; auto_add_music is never
+set). A sound the platform's API cannot add (all of them for photo posts) makes the Instagram post manual and is a
+step in the TikTok inbox checklist. The local tool signs in as a member (magic link, PKCE; refresh token in the
+macOS Keychain), never with the service-role key. Deploy: `STUDIO_SEND_DEPLOY.md`.
+
+### Upload quality
+
+Studio sends the original file to every platform (resumable byte uploads for Instagram, Facebook and YouTube,
+FILE_UPLOAD for TikTok video, signed links for TikTok photos and Meta Ads). At a post's first sync the worker reads
+back what the platform serves (Instagram media_url, Facebook photo and video formats, TikTok video.query, YouTube
+fileDetails) and raises a `quality_drop` alert when it is under 95% of what was sent. Manual checklists start with
+the apps' upload-quality settings. Files reach the release through content-creator's upload presets
+(`engine/shared/media_quality.py`).
+
 ### Data model (schema `studio`)
 
 `workspaces` (one per product) · `members` (allowlist + roles per workspace) · `settings` (targets, spend cap, cadence, App Store) · `reels` (creative + levers) · `assets` (files) · `posts` (reel × platform × type, status, times, platform ids) · `metrics_snapshots` (time series; view `latest_metrics`) · `experiments` · `connections` + `connection_secrets` · `jobs` (launch and sync queue with retries) · `campaign_links` · `alerts` · `audit_log`.
 
 ### Safety rails
 
+- **Sound** follows the workspace's `preflight.audio_policy` (owner decisions 2026-10-06): Maana no music (none, voice, natural SFX, recitation); Mawadda vocal-only (the same plus vocal-only nasheeds), no instruments; Qur'an recitation only as whole ayat the post shows, from an allowed source, never mixed with music, low, with a passing islamic-correctness fit review, never in paid.
 - **Nothing is sent to the outside world without a person clicking Confirm.** Posts are created as drafts, pass pre-flight (`_shared/preflight.ts`), then `studio.confirm_posts()` records who confirmed and queues them. The worker refuses unconfirmed posts and re-runs pre-flight before publishing. Editing a confirmed post clears the confirmation.
 - Browsers cannot set confirmation, pre-flight results, platform ids or publish status (trigger `studio.guard_posts`).
 - Ad objects are created **paused**. Activation is a separate confirmed action and is refused if it would exceed the spend cap in Settings (default $100 total).

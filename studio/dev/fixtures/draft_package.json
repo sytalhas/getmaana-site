@@ -1,0 +1,800 @@
+{
+ "schema": "studio-draft/1",
+ "brand": "maana",
+ "workspace": "maana",
+ "package_id": "g-20261006-164305-carousel-fd96-v1",
+ "format": "carousel",
+ "title": "Sabr: what you asked your friend to do",
+ "created_at": "2026-10-06T18:00:00",
+ "source": {
+  "tool": "content-creator post generator",
+  "run": "20261006-164305-carousel-fd96",
+  "variant": "v1",
+  "gated_hash": "8d5b51d4adc6323d",
+  "rank": 1,
+  "render": {
+   "renderer": "director",
+   "theme": null,
+   "size": "1080x1350",
+   "cover": "light"
+  }
+ },
+ "media_release": "sytalhas/maana-media@library",
+ "sets": {
+  "4x5": {
+   "width": 1080,
+   "height": 1350,
+   "mime": "image/jpeg",
+   "items": [
+    {
+     "n": 1,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-4x5-01.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-4x5-01.jpg",
+     "width": 1080,
+     "height": 1350,
+     "mime": "image/jpeg",
+     "bytes": 128453,
+     "sha256": "a718f9c71cb44668266bb3d0edb9a131445601b719b92f13a588ea3df5c79762",
+     "alt": "Slide 1: light paper cover. The Arabic word for patience from Surah al-Baqarah 2:153 at the top. Kicker: A friend's bad news. Heading: You texted back, \"Have sabr.\""
+    },
+    {
+     "n": 2,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-4x5-02.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-4x5-02.jpg",
+     "width": 1080,
+     "height": 1350,
+     "mime": "image/jpeg",
+     "bytes": 195826,
+     "sha256": "e53f9124c0ae35b34c290045d376b06ad18d0ddf8852d590a6abf16f8108749f",
+     "alt": "Slide 2: the first word of Surah al-Kahf 18:28, wa-ṣbir, drawn large. Heading: The sabr you texted is a word in the Qur'an. Text: wa-ṣbir means and be patient; in 18:28 Allah tells the Prophet, peace be upon him, keep yourself patient with the people who call on their Lord morning and evening."
+    },
+    {
+     "n": 3,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-4x5-03.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-4x5-03.jpg",
+     "width": 1080,
+     "height": 1350,
+     "mime": "image/jpeg",
+     "bytes": 190767,
+     "sha256": "d34e77c4b5b022d3e9b06e9b344806637c2f2ad309a91f4b1613f34d783e7d56",
+     "alt": "Slide 3: line drawing of an open book. Heading: In Arabic, sabr first means holding something back. Text: Ibn Faris's dictionary of roots files the word under holding back; when the bad news is yours, sabr is the hold you keep on yourself."
+    },
+    {
+     "n": 4,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-4x5-04.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-4x5-04.jpg",
+     "width": 1080,
+     "height": 1350,
+     "mime": "image/jpeg",
+     "bytes": 172687,
+     "sha256": "a55b88ffdec6732d168cd06387ab022e89208ad90c8ba88775139f1c971118ac",
+     "alt": "Slide 4: sunrise icon. Heading: On your own bad week, that hold works two ways. Text: hold yourself back from the angry reply you've typed, and hold yourself to getting up for Fajr."
+    },
+    {
+     "n": 5,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-4x5-05.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-4x5-05.jpg",
+     "width": 1080,
+     "height": 1350,
+     "mime": "image/jpeg",
+     "bytes": 232113,
+     "sha256": "5b65efadcf2feb98804108e6d24deed3c7f4d590509b956d917d84b025bcb22d",
+     "alt": "Slide 5: Surah al-Baqarah 2:153 in Arabic with the word for patience highlighted. English: O you who have believed, seek help through patience and prayer. Indeed, Allāh is with the patient. Translation: Saheeh International (QuranEnc.com). Below: Allah puts sabr right next to prayer here, so the next line you send your friend has both in it."
+    },
+    {
+     "n": 6,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-4x5-06.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-4x5-06.jpg",
+     "width": 1080,
+     "height": 1350,
+     "mime": "image/jpeg",
+     "bytes": 158410,
+     "sha256": "1fbe840a847cb661a9aff6129b01d01ff6002be7518be193c68dca228271034b",
+     "alt": "Slide 6: two speech bubbles. Heading: Next time a friend texts bad news, send one more line. Text gives the line: Hold on to yourself, and keep praying. I'm making du'a for you. Then make that du'a for them tonight."
+    },
+    {
+     "n": 7,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-4x5-07.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-4x5-07.jpg",
+     "width": 1080,
+     "height": 1350,
+     "mime": "image/jpeg",
+     "bytes": 205568,
+     "sha256": "1e5959a573754a63b35a69ae46818ea3806aeab7de025b44bde85a1aed74fdea",
+     "alt": "Slide 7: mosque icon. Heading: Listen for sabr the next time the imam recites. Text: the word for be patient is one of the 910 words Maana teaches; learned words light up green inside real ayat. Maana teaches the Qur'an's most common words. Pre-order on the App Store. Link in bio."
+    }
+   ],
+   "preset": "instagram_feed"
+  },
+  "9x16": {
+   "width": 1080,
+   "height": 1920,
+   "mime": "image/jpeg",
+   "items": [
+    {
+     "n": 1,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-9x16-01.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-9x16-01.jpg",
+     "width": 1080,
+     "height": 1920,
+     "mime": "image/jpeg",
+     "bytes": 130564,
+     "sha256": "f5a91c05e4dd882935116535595ecbb4e5f833f8d484251a0cdda617c8a283e1",
+     "alt": "Slide 1: light paper cover. The Arabic word for patience from Surah al-Baqarah 2:153 at the top. Kicker: A friend's bad news. Heading: You texted back, \"Have sabr.\""
+    },
+    {
+     "n": 2,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-9x16-02.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-9x16-02.jpg",
+     "width": 1080,
+     "height": 1920,
+     "mime": "image/jpeg",
+     "bytes": 203451,
+     "sha256": "a1435c83aaf7e240e8c03686530cde93093b8db03d9f12f68d6a567eace48578",
+     "alt": "Slide 2: the first word of Surah al-Kahf 18:28, wa-ṣbir, drawn large. Heading: The sabr you texted is a word in the Qur'an. Text: wa-ṣbir means and be patient; in 18:28 Allah tells the Prophet, peace be upon him, keep yourself patient with the people who call on their Lord morning and evening."
+    },
+    {
+     "n": 3,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-9x16-03.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-9x16-03.jpg",
+     "width": 1080,
+     "height": 1920,
+     "mime": "image/jpeg",
+     "bytes": 230008,
+     "sha256": "2d1e911a62b96d7dc8c3c2d987f1faca9a1ec96be6cc4f055c8dab3a5fb790eb",
+     "alt": "Slide 3: line drawing of an open book. Heading: In Arabic, sabr first means holding something back. Text: Ibn Faris's dictionary of roots files the word under holding back; when the bad news is yours, sabr is the hold you keep on yourself."
+    },
+    {
+     "n": 4,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-9x16-04.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-9x16-04.jpg",
+     "width": 1080,
+     "height": 1920,
+     "mime": "image/jpeg",
+     "bytes": 205854,
+     "sha256": "671c61f301b9991af5e2ad454015868705d3c71b64f1eec306a301861a7103ff",
+     "alt": "Slide 4: sunrise icon. Heading: On your own bad week, that hold works two ways. Text: hold yourself back from the angry reply you've typed, and hold yourself to getting up for Fajr."
+    },
+    {
+     "n": 5,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-9x16-05.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-9x16-05.jpg",
+     "width": 1080,
+     "height": 1920,
+     "mime": "image/jpeg",
+     "bytes": 232858,
+     "sha256": "56eefbb97c732aa773aa9da35d92a92f6623fbcc5b5e7ed058c4a9cb6710ffe3",
+     "alt": "Slide 5: Surah al-Baqarah 2:153 in Arabic with the word for patience highlighted. English: O you who have believed, seek help through patience and prayer. Indeed, Allāh is with the patient. Translation: Saheeh International (QuranEnc.com). Below: Allah puts sabr right next to prayer here, so the next line you send your friend has both in it."
+    },
+    {
+     "n": 6,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-9x16-06.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-9x16-06.jpg",
+     "width": 1080,
+     "height": 1920,
+     "mime": "image/jpeg",
+     "bytes": 185360,
+     "sha256": "7a7a9877dcd9a2d71d008710c25057b35ce0165f5048b464e85fe63b7fa6341f",
+     "alt": "Slide 6: two speech bubbles. Heading: Next time a friend texts bad news, send one more line. Text gives the line: Hold on to yourself, and keep praying. I'm making du'a for you. Then make that du'a for them tonight."
+    },
+    {
+     "n": 7,
+     "name": "maana-g-20261006-164305-carousel-fd96-v1-9x16-07.jpg",
+     "url": "https://github.com/sytalhas/maana-media/releases/download/library/maana-g-20261006-164305-carousel-fd96-v1-9x16-07.jpg",
+     "width": 1080,
+     "height": 1920,
+     "mime": "image/jpeg",
+     "bytes": 222463,
+     "sha256": "1dfeae330fed27da50a8f013f17e3986e811751a4b120c37a62e7b9893a8a4b6",
+     "alt": "Slide 7: mosque icon. Heading: Listen for sabr the next time the imam recites. Text: the word for be patient is one of the 910 words Maana teaches; learned words light up green inside real ayat. Maana teaches the Qur'an's most common words. Pre-order on the App Store. Link in bio."
+    }
+   ],
+   "preset": "tiktok_photo"
+  }
+ },
+ "posts": [
+  {
+   "platform": "instagram",
+   "set": "4x5",
+   "method": "api",
+   "caption": "Your friend sends their bad news, and you text back \"have sabr\". That word asks them to hold on to themselves.\n\nIn Surah al-Kahf (18:28), Allah tells the Prophet, peace be upon him, \"keep yourself patient\" with the people who call on their Lord morning and evening. Ibn Faris's classical dictionary files sabr under holding something back. So on your own bad week, it means holding yourself back from what you'd regret, and holding yourself to what you still have to do. In 2:153, Allah puts it right next to prayer.\n\nSo next time, send your friend one more line: \"Hold on to yourself, and keep praying. I'm making du'a for you.\"\n\nSend this to the friend you said it to.\n\nWord meanings: Quran Foundation. Translation: Saheeh International (QuranEnc.com).\n\nMaana teaches the Qur'an's most common words. Pre-order on the App Store.\n\n#sabr #patience #quranicarabic #quranwords #learnquran",
+   "hashtags": [
+    "#sabr",
+    "#patience",
+    "#quranicarabic",
+    "#quranwords",
+    "#learnquran"
+   ],
+   "first_comment": null,
+   "audio": {
+    "choice": {
+     "id": "none",
+     "label": "No added sound",
+     "kind": "none",
+     "contains_instruments": false,
+     "licence": "none",
+     "delivery": "none",
+     "query": null
+    },
+    "policy_check": {
+     "ok": true,
+     "errors": [],
+     "warnings": []
+    },
+    "manual_step": null,
+    "api": {
+     "api_audio": false,
+     "path": "API when there is no sound; manual checklist when there is one",
+     "note": "Instagram lets you add music to a carousel only in the app, and not after it is posted; the Graph API has no sound field for images or carousels (AU-04).",
+     "manual": "Post this carousel by hand in the Instagram app: add the slides in order, tap Add music, search \"{q}\"{vol}, paste the caption and alt text from Studio, Share, then attach the post's link in Studio."
+    },
+    "recommendation": {
+     "primary": {
+      "id": "none",
+      "label": "No added sound",
+      "kind": "none",
+      "licence": "none",
+      "delivery": "none",
+      "score": 0.35,
+      "why": [
+       "trend: not a trend item",
+       "fit: fits the post's calm, reflective, warm mood",
+       "no corpus evidence: the corpus has no audio field for Instagram (11665 posts)",
+       "licence: nothing to license",
+       "policy: allowed"
+      ],
+      "licence_status": "nothing to license",
+      "manual_step": null,
+      "trend": null,
+      "needs": null
+     },
+     "alternatives": [
+      {
+       "id": "recitation:2:153,18:28",
+       "label": "Qur'an recitation of 2:153, 18:28 (whole ayat), low under the post",
+       "kind": "recitation",
+       "licence": "platform_in_app",
+       "delivery": "in_app",
+       "score": 0.35,
+       "why": [
+        "trend: not a trend item",
+        "fit: fits the post's calm, reflective mood",
+        "no corpus evidence: the corpus has no audio field for Instagram (11665 posts)",
+        "licence: the platform's own library, inside the app only, if this business account can see it; organic only",
+        "policy: allowed, after this: recitation needs a passing fit review from the islamic-correctness gate (reverent fit; never under humour, light, commercial)"
+       ],
+       "licence_status": "the platform's own library, inside the app only, if this business account can see it; organic only",
+       "manual_step": "Post this carousel by hand in the Instagram app: add the slides in order, tap Add music, search \"Quran 2:153\" (about 25%, low under the post), paste the caption and alt text from Studio, Share, then attach the post's link in Studio.",
+       "trend": null,
+       "needs": [
+        "run the recitation fit review (islamic-correctness) first",
+        "listen: it starts and ends on whole ayat, with no music",
+        "set the volume to about 25%",
+        "only if this account can see a recitation of this ayah in the app; organic only, never boosted"
+       ]
+      },
+      {
+       "id": "sfx-natural",
+       "label": "Natural sound effect (rain, pages turning, birds at dawn)",
+       "kind": "sfx",
+       "licence": "meta_sound_collection",
+       "delivery": "in_app",
+       "score": 0.35,
+       "why": [
+        "trend: not a trend item",
+        "fit: fits the post's calm, reflective mood",
+        "no corpus evidence: the corpus has no audio field for Instagram (11665 posts)",
+        "licence: Meta Sound Collection: royalty-free, cleared for commercial use on Instagram and Facebook",
+        "policy: allowed"
+       ],
+       "licence_status": "Meta Sound Collection: royalty-free, cleared for commercial use on Instagram and Facebook",
+       "manual_step": "Post this carousel by hand in the Instagram app: add the slides in order, tap Add music, search \"rain ambience\" (low, so the slides lead), paste the caption and alt text from Studio, Share, then attach the post's link in Studio.",
+       "trend": null,
+       "needs": [
+        "listen first: pick a sound effect with no music under it"
+       ]
+      }
+     ],
+     "filtered": [],
+     "trend_source": {
+      "refreshed": null,
+      "source": "Instagram Reels trending audio (the arrow next to a sound in the Reels audio picker) and the Meta Sound Collection",
+      "source_url": "https://www.facebook.com/sound/collection/",
+      "entries": 0,
+      "note": "no trend data on file for instagram: import it from Instagram Reels trending audio (the arrow next to a sound in the Reels audio picker) and the Meta Sound Collection (./cc audio trends import --platform instagram ...)"
+     },
+     "evidence": {
+      "available": true,
+      "computed": "2026-10-06",
+      "coverage": {
+       "tiktok_with_audio": 211,
+       "tiktok_posts": 6132,
+       "instagram_with_audio": 0,
+       "instagram_posts": 11665,
+       "youtube_with_audio": 0,
+       "youtube_posts": 9525
+      },
+      "note": "Only TikTok rows captured the sound (posts.raw musicMeta); Instagram and YouTube rows have no audio field. Relative views are correlational and confounded by everything else in the post."
+     },
+     "conversion": "No conversion data exists for audio: Studio does not attribute installs to a sound, and the corpus has no installs. Nothing here promises a lift.",
+     "post_moods": [
+      "calm",
+      "reflective",
+      "warm"
+     ]
+    }
+   },
+   "notes": []
+  },
+  {
+   "platform": "tiktok",
+   "set": "9x16",
+   "method": "inbox_draft",
+   "caption": "What sabr means when you text a friend \"have sabr\": the classical dictionaries say it's holding yourself back. Surah al-Kahf 18:28 and al-Baqarah 2:153. Word meanings: Quran Foundation. Translation: Saheeh International (QuranEnc.com). Maana teaches the Qur'an's most common words. Pre-order on the App Store.\n\n#sabr #patience #quranicarabic #quranwords #learnquran",
+   "hashtags": [
+    "#sabr",
+    "#patience",
+    "#quranicarabic",
+    "#quranwords",
+    "#learnquran"
+   ],
+   "first_comment": null,
+   "audio": {
+    "choice": {
+     "id": "sfx-natural",
+     "label": "Natural sound effect (rain, pages turning, birds at dawn)",
+     "kind": "sfx",
+     "contains_instruments": false,
+     "licence": "cml",
+     "delivery": "in_app",
+     "query": "rain ambience"
+    },
+    "policy_check": {
+     "ok": true,
+     "errors": [],
+     "warnings": []
+    },
+    "manual_step": "Open TikTok on the Maana account, tap the inbox notification for this draft, tap Sounds, search \"rain ambience\", pick it, set its volume (low, so the slides lead), then paste the caption from Studio and Post.",
+    "api": {
+     "api_audio": false,
+     "path": "inbox draft (post_mode MEDIA_UPLOAD)",
+     "note": "The Content Posting API cannot attach a chosen sound to a photo post; its only control is auto_add_music, which lets TikTok pick a track (Studio never sets it). The slides go to the TikTok inbox and a person adds the sound in TikTok's editor (AU-01, AU-02).",
+     "manual": "Open TikTok on the {brand} account, tap the inbox notification for this draft, tap Sounds, search \"{q}\", pick it, set its volume{vol}, then paste the caption from Studio and Post."
+    },
+    "recommendation": {
+     "primary": {
+      "id": "sfx-natural",
+      "label": "Natural sound effect (rain, pages turning, birds at dawn)",
+      "kind": "sfx",
+      "licence": "cml",
+      "delivery": "in_app",
+      "score": 0.417,
+      "why": [
+       "trend: not a trend item",
+       "fit: fits the post's calm, reflective mood",
+       "corpus: TikTok carousels with original sounds ran at 1.0x their creator's median views (n=12, 2 creators, weak; correlational)",
+       "licence: TikTok Commercial Music Library: cleared for a business account, on TikTok only",
+       "policy: allowed"
+      ],
+      "licence_status": "TikTok Commercial Music Library: cleared for a business account, on TikTok only",
+      "manual_step": "Open TikTok on the Maana account, tap the inbox notification for this draft, tap Sounds, search \"rain ambience\", pick it, set its volume (low, so the slides lead), then paste the caption from Studio and Post.",
+      "trend": null,
+      "needs": [
+       "listen first: pick a sound effect with no music under it"
+      ]
+     },
+     "alternatives": [
+      {
+       "id": "recitation:2:153,18:28",
+       "label": "Qur'an recitation of 2:153, 18:28 (whole ayat), low under the post",
+       "kind": "recitation",
+       "licence": "platform_in_app",
+       "delivery": "in_app",
+       "score": 0.417,
+       "why": [
+        "trend: not a trend item",
+        "fit: fits the post's calm, reflective mood",
+        "corpus: TikTok carousels with original sounds ran at 1.0x their creator's median views (n=12, 2 creators, weak; correlational)",
+        "licence: the platform's own library, inside the app only, if this business account can see it; organic only",
+        "policy: allowed, after this: recitation needs a passing fit review from the islamic-correctness gate (reverent fit; never under humour, light, commercial)"
+       ],
+       "licence_status": "the platform's own library, inside the app only, if this business account can see it; organic only",
+       "manual_step": "Open TikTok on the Maana account, tap the inbox notification for this draft, tap Sounds, search \"Quran 2:153\", pick it, set its volume (about 25%, low under the post), then paste the caption from Studio and Post.",
+       "trend": null,
+       "needs": [
+        "run the recitation fit review (islamic-correctness) first",
+        "listen: it starts and ends on whole ayat, with no music",
+        "set the volume to about 25%",
+        "only if this account can see a recitation of this ayah in the app; organic only, never boosted"
+       ]
+      },
+      {
+       "id": "voice-own",
+       "label": "Your own voice reading the first slide (TikTok voiceover)",
+       "kind": "voice",
+       "licence": "own",
+       "delivery": "in_app",
+       "score": 0.417,
+       "why": [
+        "trend: not a trend item",
+        "fit: fits the post's calm, reflective, warm mood",
+        "corpus: TikTok carousels with original sounds ran at 1.0x their creator's median views (n=12, 2 creators, weak; correlational)",
+        "licence: our own recording",
+        "policy: allowed"
+       ],
+       "licence_status": "our own recording",
+       "manual_step": "Open TikTok on the Maana account, tap the inbox notification for this draft, tap Sounds, search \"Voiceover\", pick it, set its volume, then paste the caption from Studio and Post.",
+       "trend": null,
+       "needs": [
+        "only if TikTok's photo editor offers Voiceover on this draft"
+       ]
+      },
+      {
+       "id": "none",
+       "label": "No added sound",
+       "kind": "none",
+       "licence": "none",
+       "delivery": "none",
+       "score": 0.21,
+       "why": [
+        "trend: not a trend item",
+        "fit: fits the post's calm, reflective, warm mood",
+        "no corpus evidence for posts without sound (the corpus cannot see silence)",
+        "licence: nothing to license",
+        "policy: allowed"
+       ],
+       "licence_status": "nothing to license",
+       "manual_step": null,
+       "trend": null,
+       "needs": null
+      }
+     ],
+     "filtered": [],
+     "trend_source": {
+      "refreshed": null,
+      "source": "TikTok Creative Center, Trends > Songs, filter: approved for business use (Commercial Music Library)",
+      "source_url": "https://ads.tiktok.com/business/creativecenter/inspiration/popular/music/pc/en",
+      "entries": 0,
+      "note": "no trend data on file for tiktok: import it from TikTok Creative Center, Trends > Songs, filter: approved for business use (Commercial Music Library) (./cc audio trends import --platform tiktok ...)"
+     },
+     "evidence": {
+      "available": true,
+      "computed": "2026-10-06",
+      "coverage": {
+       "tiktok_with_audio": 211,
+       "tiktok_posts": 6132,
+       "instagram_with_audio": 0,
+       "instagram_posts": 11665,
+       "youtube_with_audio": 0,
+       "youtube_posts": 9525
+      },
+      "note": "Only TikTok rows captured the sound (posts.raw musicMeta); Instagram and YouTube rows have no audio field. Relative views are correlational and confounded by everything else in the post."
+     },
+     "conversion": "No conversion data exists for audio: Studio does not attribute installs to a sound, and the corpus has no installs. Nothing here promises a lift.",
+     "post_moods": [
+      "calm",
+      "reflective",
+      "warm"
+     ]
+    }
+   },
+   "notes": []
+  },
+  {
+   "platform": "facebook",
+   "set": "4x5",
+   "method": "api",
+   "caption": "Your friend sends their bad news, and you text back \"have sabr\". That word asks them to hold on to themselves.\n\nIn Surah al-Kahf (18:28), Allah tells the Prophet, peace be upon him, \"keep yourself patient\" with the people who call on their Lord morning and evening. Ibn Faris's classical dictionary files sabr under holding something back. So on your own bad week, it means holding yourself back from what you'd regret, and holding yourself to what you still have to do. In 2:153, Allah puts it right next to prayer.\n\nSo next time, send your friend one more line: \"Hold on to yourself, and keep praying. I'm making du'a for you.\"\n\nSend this to the friend you said it to.\n\nWord meanings: Quran Foundation. Translation: Saheeh International (QuranEnc.com).\n\nMaana teaches the Qur'an's most common words. Pre-order on the App Store.\n\n#sabr #patience #quranicarabic #quranwords #learnquran",
+   "hashtags": [
+    "#sabr",
+    "#patience",
+    "#quranicarabic",
+    "#quranwords",
+    "#learnquran"
+   ],
+   "first_comment": null,
+   "audio": {
+    "choice": {
+     "id": "none",
+     "label": "No added sound",
+     "kind": "none",
+     "contains_instruments": false,
+     "licence": "none",
+     "delivery": "none",
+     "query": null
+    },
+    "policy_check": {
+     "ok": true,
+     "errors": [],
+     "warnings": []
+    },
+    "manual_step": null,
+    "api": {
+     "api_audio": false,
+     "path": "API (no sound)",
+     "note": "Facebook photo and multi-photo posts carry no sound (AU-05).",
+     "manual": null
+    },
+    "recommendation": {
+     "primary": {
+      "id": "none",
+      "label": "No added sound",
+      "kind": "none",
+      "licence": "none",
+      "delivery": "none",
+      "score": 0.35,
+      "why": [
+       "trend: not a trend item",
+       "fit: fits the post's calm, reflective, warm mood",
+       "no corpus evidence: the corpus holds no Facebook posts",
+       "licence: nothing to license",
+       "policy: allowed"
+      ],
+      "licence_status": "nothing to license",
+      "manual_step": null,
+      "trend": null,
+      "needs": null
+     },
+     "alternatives": [],
+     "filtered": [],
+     "trend_source": {
+      "refreshed": null,
+      "source": null,
+      "source_url": null,
+      "entries": 0,
+      "note": "no trend data on file for facebook: import it from the platform (./cc audio trends import --platform facebook ...)"
+     },
+     "evidence": {
+      "available": true,
+      "computed": "2026-10-06",
+      "coverage": {
+       "tiktok_with_audio": 211,
+       "tiktok_posts": 6132,
+       "instagram_with_audio": 0,
+       "instagram_posts": 11665,
+       "youtube_with_audio": 0,
+       "youtube_posts": 9525
+      },
+      "note": "Only TikTok rows captured the sound (posts.raw musicMeta); Instagram and YouTube rows have no audio field. Relative views are correlational and confounded by everything else in the post."
+     },
+     "conversion": "No conversion data exists for audio: Studio does not attribute installs to a sound, and the corpus has no installs. Nothing here promises a lift.",
+     "post_moods": [
+      "calm",
+      "reflective",
+      "warm"
+     ]
+    }
+   },
+   "notes": []
+  }
+ ],
+ "skipped": [
+  {
+   "platform": "youtube_shorts",
+   "why": "YouTube has no API for image posts (playbook AU-07): post the 9:16 slides by hand in the YouTube app if wanted."
+  }
+ ],
+ "ayahs": [
+  "2:153",
+  "18:28"
+ ],
+ "gate_report": {
+  "all_passed": true,
+  "gates": [
+   {
+    "gate": "human-voice",
+    "label": "Sounds like a person talking to you",
+    "pass": true,
+    "blocking": [],
+    "advisory": [
+     {
+      "where": "Slides 3-4 into 5-6",
+      "why": "The hook has me texting a friend. Slides 3 and 4 turn to my own bad week, then slides 5 and 6 go back to the friend. I follow it, but I feel the swing.",
+      "fix": "Open slide 4 from the friend's side: \"Your friend is holding two things when they get that text: the reply they shouldn't send, and Fajr they still have to get up for.\" That keeps the whole post on the friend."
+     }
+    ],
+    "needs_reviewer": [
+     {
+      "where": "Slide 3",
+      "quote": "Ibn Faris ... files the word under holding back, and his example is a man holding himself to a task",
+      "why": "Does the Ibn Faris card in maqayis-ibn-faris support the \"man holding himself to a task\" example? I did not judge sources."
+     },
+     {
+      "where": "Slide 7",
+      "quote": "one of the 910 words Maana teaches",
+      "why": "Does facts.py confirm 910, and is \"lights up green inside real ayat\" the approved wording?"
+     }
+    ],
+    "before_posting": [
+     "Pre-order wording and launch_state must still match pipeline/decisions.json",
+     "Swap the TikTok caption for the scene voice if the owner agrees"
+    ]
+   },
+   {
+    "gate": "maana-correctness",
+    "label": "Correctness (Sunni sources)",
+    "pass": true,
+    "blocking": [],
+    "advisory": [
+     {
+      "where": "slide 3 body",
+      "why": "Ibn Faris's example is the first-person \"صبرت نفسي على ذلك الأمر\" (I held myself to that matter). \"A man\" and \"a task\" are a loose paraphrase. It is not wrong, but \"holding himself to a matter\" or \"I held myself to that matter\" is closer.",
+      "fix": "Reword to \"his example is someone holding themselves to a matter\"."
+     }
+    ],
+    "needs_reviewer": [
+     {
+      "where": "slide 2 and caption",
+      "quote": "wa-ṣbir is the command form of the verb",
+      "why": "Confirm the Arabic grammar term and the transliteration \"wa-ṣbir\" with maana-arabic-expert (QPC 18:28 word 1, وَٱصۡبِرۡ)."
+     }
+    ],
+    "before_posting": [
+     "Confirm the rendered slide 5 shows \"Translation: Saheeh International (QuranEnc.com)\" under the ayah and that the ayah image comes from quran_layer.py with 2:153 shown.",
+     "Confirm the pre-order state is still the launch state in pipeline/decisions.json.",
+     "Confirm the first-slide Arabic word is QPC 2:153 word 5, highlighted only by colour."
+    ]
+   },
+   {
+    "gate": "islamic-correctness",
+    "label": "Islamic correctness",
+    "pass": true,
+    "blocking": [],
+    "advisory": [
+     {
+      "where": "slide 4 body / alt text slide 4",
+      "why": "This is the writer's own illustration of \"holding yourself to what you must do\". It is not in any card, and it can read as a mild guilt nudge for a viewer who is already struggling and missing Fajr. It does not state a ruling.",
+      "fix": "Use a neutral example such as \"holding yourself to the prayer you still have to make\", or soften it to \"even a short prayer\"."
+     }
+    ],
+    "needs_reviewer": [
+     {
+      "where": "slide 4 and slide 6",
+      "quote": "hold yourself back from what you'd regret ... hold yourself to what you still have to do",
+      "why": "The Sunni sources (Raghib, Baghawi on 18:28, Tabari on 2:45) support sabr as holding the self. Please confirm that the applied examples (the angry reply, Fajr, \"keep praying\") are fine as the brand's own illustration and not attributed to a source."
+     }
+    ],
+    "before_posting": [
+     "Check that the 2:153 ayah image shows the surah:ayah reference and the Saheeh International (QuranEnc.com) credit under it, and that only word 5 (بِٱلصَّبْرِ) is highlighted.",
+     "Check that the caption credits \"Quran Foundation\" and the translation line, and that the Pre-order line matches the launch state in decisions.json.",
+     "Confirm the \"910 words\" and \"learned words light up green\" lines against the live rows in facts.md (the post lists word-deck and words-light-up)."
+    ]
+   },
+   {
+    "gate": "maana-arabic-expert",
+    "label": "Arabic",
+    "pass": true,
+    "blocking": [],
+    "advisory": [
+     {
+      "where": "Slide 2 heading and body",
+      "why": "The text 'have sabr' is the noun, but the word card is the verb's imperative wa-ṣbir. The body says so, so it is not an error. The heading slightly overstates that the card shows the word texted.",
+      "fix": "Optional: 'The sabr you texted comes from a command in the Qur'an'."
+     }
+    ],
+    "needs_reviewer": [
+     {
+      "where": "Slide 2 word-card heading",
+      "quote": "The *sabr* you texted is a word in the Qur'an",
+      "why": "Is a card showing the imperative wa-ṣbir acceptable under a heading about the noun 'sabr'?"
+     }
+    ],
+    "before_posting": [
+     "Open the final slide 2 render and confirm the Arabic reads وَٱصۡبِرۡ with its vocalisation intact.",
+     "Open the slide 5 render and confirm the highlight sits on بِٱلصَّبۡرِ, the fifth word."
+    ]
+   }
+  ],
+  "checks": [],
+  "platform_checks": {
+   "tiktok": {
+    "pass": 8,
+    "warn": 3,
+    "warnings": [
+     "TT-03: none of ['sabr meaning', 'what does sabr mean', 'patience in the Quran'] in caption",
+     "TT-04: none of ['sabr meaning', 'what does sabr mean', 'patience in the Quran'] in caption[:100]",
+     "TT-05: none of ['sabr meaning', 'what does sabr mean', 'patience in the Quran'] in on_screen_text"
+    ]
+   },
+   "instagram": {
+    "pass": 8,
+    "warn": 2,
+    "warnings": [
+     "IG-15: none of ['sabr meaning', 'what does sabr mean', 'patience in the Quran', 'sabr in the Quran'] in caption",
+     "IG-16: none of ['sabr meaning', 'what does sabr mean', 'patience in the Quran', 'sabr in the Quran'] in caption[:100]"
+    ]
+   }
+  },
+  "design_tips": [
+   "text contrast",
+   "line breaks",
+   "consistency across slides",
+   "words per slide"
+  ],
+  "rewrites": 2,
+  "gated_hash": "8d5b51d4adc6323d"
+ },
+ "credits": [
+  {
+   "slide": 3,
+   "id": "shared.still.icon-lucide-book-open",
+   "title": "Book open (Lucide)",
+   "kind": "icon",
+   "licence": "ISC",
+   "licence_text": "engine/mediums/assets/files/stills/LICENSES/lucide-ISC.txt",
+   "attribution_required": false,
+   "attribution": null,
+   "source": "https://lucide.dev/icons/book-open",
+   "author": "Lucide Contributors (Feather-derived icons: Cole Bemis, MIT)",
+   "retrieved": "2026-10-06"
+  },
+  {
+   "slide": 4,
+   "id": "shared.still.icon-lucide-sunrise",
+   "title": "Sunrise (Lucide)",
+   "kind": "icon",
+   "licence": "ISC",
+   "licence_text": "engine/mediums/assets/files/stills/LICENSES/lucide-ISC.txt",
+   "attribution_required": false,
+   "attribution": null,
+   "source": "https://lucide.dev/icons/sunrise",
+   "author": "Lucide Contributors (Feather-derived icons: Cole Bemis, MIT)",
+   "retrieved": "2026-10-06"
+  },
+  {
+   "slide": 6,
+   "id": "shared.still.illus-speech-bubbles",
+   "title": "Two speech bubbles",
+   "kind": "illustration",
+   "licence": "first-party",
+   "licence_text": "engine/mediums/assets/files/stills/LICENSES/first-party.txt",
+   "attribution_required": false,
+   "attribution": null,
+   "source": "repo:engine/mediums/assets/stills_build.py",
+   "author": "content-creator engine (Claude Code) for Maana and Mawadda",
+   "retrieved": "2026-10-06"
+  },
+  {
+   "slide": 7,
+   "id": "shared.still.icon-tabler-building-mosque",
+   "title": "Building mosque (Tabler)",
+   "kind": "icon",
+   "licence": "MIT",
+   "licence_text": "engine/mediums/assets/files/stills/LICENSES/tabler-MIT.txt",
+   "attribution_required": false,
+   "attribution": null,
+   "source": "https://tabler.io/icons/icon/building-mosque",
+   "author": "Pawel Kuna (Tabler Icons)",
+   "retrieved": "2026-10-06"
+  }
+ ],
+ "audio_policy": {
+  "allowed": [
+   "none",
+   "voice",
+   "sfx",
+   "recitation"
+  ],
+  "vocal_only": true,
+  "accounts": {
+   "instagram": "business",
+   "facebook": "page",
+   "tiktok": "business"
+  },
+  "recitation": {
+   "allowed": true,
+   "bed_lufs": -24,
+   "lufs_tolerance": 1,
+   "never_in_paid": true,
+   "fit_gate": "islamic-correctness"
+  },
+  "recitation_sources": {
+   "everyayah": "rejected",
+   "mp3quran": "rejected",
+   "quran-foundation": "rejected",
+   "platform-in-app": "in_app_only",
+   "commissioned-qari": "approved_when_signed"
+  }
+ },
+ "nothing_posted": "Drafts only. A person reviews them in Studio and presses Confirm; only then does Studio publish."
+}
