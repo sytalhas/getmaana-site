@@ -135,7 +135,65 @@ async function loadMetrics() {
 }
 
 let channel = null;
+let channelSeq = 0;
 let loadSeq = 0;
+
+// Full reloads after a Realtime reconnect are coalesced: one in flight at a
+// time, at least RELOAD_GAP_MS apart, none while the tab is hidden (it runs when
+// the tab is visible again), and a failed reload retries with capped backoff.
+const RELOAD_GAP_MS = 2000;
+const RELOAD_RETRIES = 4;
+const reload = { timer: null, inFlight: false, wanted: false, last: 0, tries: 0 };
+
+function hidden() {
+  return typeof document !== "undefined" && document.hidden;
+}
+
+function requestReload(delay = 0) {
+  reload.wanted = true;
+  if (reload.timer || reload.inFlight || hidden()) return;
+  const wait = Math.max(delay, reload.last + RELOAD_GAP_MS - Date.now(), 0);
+  reload.timer = setTimeout(runReload, wait);
+}
+
+async function runReload() {
+  reload.timer = null;
+  if (!reload.wanted || reload.inFlight || hidden()) return;
+  reload.wanted = false;
+  reload.inFlight = true;
+  reload.last = Date.now();
+  const seq = loadSeq;
+  const wsId = store.wsId;
+  let retry = 0;
+  try {
+    await loadData();
+    if (seq === loadSeq && wsId === store.wsId) {
+      reload.tries = 0;
+      store.emit("*");
+    }
+  } catch (e) {
+    console.error(e);
+    if (seq === loadSeq && reload.tries < RELOAD_RETRIES) {
+      reload.tries += 1;
+      retry = Math.min(60e3, RELOAD_GAP_MS * 2 ** reload.tries);
+      reload.wanted = true;
+    }
+  } finally {
+    reload.inFlight = false;
+  }
+  if (reload.wanted && seq === loadSeq) requestReload(retry);
+}
+
+function resetReload() {
+  clearTimeout(reload.timer);
+  Object.assign(reload, { timer: null, wanted: false, last: Date.now(), tries: 0 });
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (!hidden() && reload.wanted) requestReload();
+  });
+}
 
 /** Loads the memberships and the workspace rows this user may open. */
 export async function loadWorkspaces() {
@@ -165,6 +223,7 @@ export async function openWorkspace(id) {
   setLeverFields(ws.levers?.fields ?? null);
   for (const name of Object.keys(TABLES)) store[name].clear();
   store.metrics.clear();
+  resetReload();
   await loadAll(seq);
   // A brand-new workspace has no settings rows: an owner seeds the defaults once.
   if (seq === loadSeq && !store.settings.size && store.isOwner()) {
@@ -173,21 +232,36 @@ export async function openWorkspace(id) {
   }
 }
 
+function loadData() {
+  return Promise.all([...Object.keys(TABLES).map(loadTable), loadMetrics()]);
+}
+
+/** Loads the open workspace and (re)subscribes to it. Only openWorkspace calls this. */
 export async function loadAll(seq = loadSeq) {
   const wsId = store.wsId;
-  await Promise.all([...Object.keys(TABLES).map(loadTable), loadMetrics()]);
+  await loadData();
   if (seq !== loadSeq || wsId !== store.wsId) return; // switched meanwhile
   store.ready = true;
+  reload.last = Date.now();
   subscribe();
   store.emit("*");
 }
 
 function subscribe() {
-  if (channel) supa.removeChannel(channel);
+  // Detach the old channel BEFORE removing it: removing it fires its CLOSED
+  // status, which must not count as "the connection dropped". (It used to set a
+  // shared flag, so every reload's resubscribe started the next reload: a full
+  // reload of every table, back to back, from one dropped connection.)
+  const old = channel;
+  channel = null;
+  if (old) supa.removeChannel(old);
   const wsId = store.wsId;
-  channel = supa.channel(`studio-live-${wsId}`);
+  // A fresh topic each time: supabase-js hands back an existing channel with the
+  // same topic while the old one is still leaving.
+  const ch = supa.channel(`studio-live-${wsId}-${++channelSeq}`);
+  channel = ch;
   for (const name of [...Object.keys(TABLES), "metrics_snapshots"]) {
-    channel.on("postgres_changes", { event: "*", schema: "studio", table: name, filter: `workspace_id=eq.${wsId}` }, (msg) => {
+    ch.on("postgres_changes", { event: "*", schema: "studio", table: name, filter: `workspace_id=eq.${wsId}` }, (msg) => {
       if (wsId !== store.wsId) return;
       const row = msg.eventType === "DELETE" ? msg.old : msg.new;
       if (row?.workspace_id && row.workspace_id !== wsId) return;
@@ -203,17 +277,22 @@ function subscribe() {
       emitSoon(name);
     });
   }
-  const ch = channel;
-  channel.subscribe((status) => {
-    if (ch !== channel) return; // an old workspace's channel closing
+  let down = false;
+  ch.subscribe((status) => {
+    if (ch !== channel || wsId !== store.wsId) return; // a replaced or old workspace's channel
     store.live = status === "SUBSCRIBED";
     emitSoon("live");
-    // After a dropped connection, reload so nothing missed while offline is lost.
-    if (status === "SUBSCRIBED" && store._wasDown && wsId === store.wsId) {
-      store._wasDown = false;
-      loadAll();
+    if (status === "SUBSCRIBED") {
+      // Back after this channel was down: reload once (coalesced) so nothing
+      // missed while offline is lost. Data only; the channel stays as it is.
+      if (down) {
+        down = false;
+        reload.tries = 0;
+        requestReload();
+      }
+    } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+      down = true;
     }
-    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") store._wasDown = true;
   });
 }
 
