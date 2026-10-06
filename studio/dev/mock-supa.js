@@ -152,6 +152,33 @@ const posts = [
   P({ reel_id: "r8", asset_id: vid("r8", "main"), platform: "instagram", post_type: "trial", status: "scheduled", scheduled_at: iso(now + 20 * H), campaign_ct: "r8-igt-261001-r3s", caption: reels[7].caption_organic, options: { trial_params: { graduation_strategy: "SS_PERFORMANCE" } }, confirmed_at: iso(now - 30 * 60e3) }),
 ];
 
+// A carousel sent from the content-creator post generator ("Send to Studio"): the real package from
+// dev/fixtures/draft_package.json (built by studio_send.py from a Maana run), as studio-api /drafts stores it.
+// Slides load from the generator's local output: ?gen=<folder with 4x5/ and 9x16/> (default: the g2s-cc worktree).
+const GEN_LOCAL = new URL(qs.get("gen") ?? "../../g2s-cc/out/generator/maana/20261006-164305-carousel-fd96/variants/v1/studio/", document.baseURI).href;
+const GEN_PKG = await fetch(new URL("./fixtures/draft_package.json", import.meta.url)).then((r) => r.json()).catch(() => null);
+if (GEN_PKG) {
+  const pk = GEN_PKG;
+  reels.push({ ...R(pk.package_id, pk.title, "generator", "", { folder: null, status: "ready", caption_organic: pk.posts[0].caption, poster_url: pk.sets["4x5"].items[0].url }),
+    notes: `Sent from the content-creator post generator (${pk.source.run} ${pk.source.variant}).`,
+    package: { schema: pk.schema, source: pk.source, gate_report: pk.gate_report, credits: pk.credits, skipped: pk.skipped, ayahs: pk.ayahs } });
+  const setIds = {};
+  for (const [variant, st] of Object.entries(pk.sets)) {
+    setIds[variant] = uuid();
+    assets.push({ id: setIds[variant], reel_id: pk.package_id, kind: "image_set", variant, url: st.items[0].url, repo_path: null, bytes: null,
+      sha256: null, duration_s: null, width: st.width, height: st.height, audio: null, manual_audio: false, items: st.items, created_at: iso(now - 1 * H) });
+  }
+  for (const gp of pk.posts) {
+    const method = gp.method;
+    posts.push(P({ reel_id: pk.package_id, asset_id: setIds[gp.set], platform: gp.platform, post_type: "organic", method, status: "draft",
+      format: "carousel", caption: gp.caption, confirmed_by: null, confirmed_at: null, created_at: iso(now - 50 * 60e3),
+      options: { set: gp.set, source: "generator", audio: gp.audio, alt_text: pk.sets[gp.set].items.map((i) => i.alt), ...(gp.platform === "tiktok" ? { auto_add_music: false } : {}) },
+      preflight: { ok: true, errors: [], warnings: gp.platform === "tiktok"
+        ? ["The app is not live yet, so App Store campaign links cannot be generated. The campaign id is reserved for this post."]
+        : ["The app is not live yet, so App Store campaign links cannot be generated. The campaign id is reserved for this post."], checked_at: iso(now - 50 * 60e3) } }));
+  }
+}
+
 const metrics = [];
 const M = (post, hoursAgo, x) => metrics.push({ id: metrics.length + 1, post_id: post.id, captured_at: iso(now - hoursAgo * H), raw: {}, ...x });
 for (let i = 0; i < 6; i++) {
@@ -217,7 +244,8 @@ const workspaces = [
       app_store_url: "https://apps.apple.com/app/id6817107338", play_store_url: null, media_repo: "sytalhas/maana-media",
       content_kind: "short educational videos", default_video_title: "Maana", app_live: false,
       handles: { instagram: "@maana.app", tiktok: "@maana.app", youtube: "Maana", facebook: "Maana" } },
-    preflight: { recitation_rules: true, religion_rule: true, time_promise: true, silent_warning: true, banned: [], warn: [] },
+    preflight: { recitation_rules: true, religion_rule: true, time_promise: true, silent_warning: true, banned: [], warn: [],
+      audio_policy: { allowed: ["none", "voice", "sfx", "recitation"], vocal_only: true } },
     levers: {
       vocab: {
         hook_type: ["question", "number", "statement", "pov", "pattern", "myth_bust"],
@@ -249,7 +277,8 @@ const workspaces = [
       app_store_url: "https://apps.apple.com/app/id6756983545", play_store_url: "https://play.google.com/store/apps/details?id=com.mawadda.android",
       media_repo: null, content_kind: "short videos for Muslim couples", default_video_title: "Mawadda", app_live: true,
       handles: { instagram: "@mawadda.app", tiktok: "@mawadda.app", youtube: "Mawadda", facebook: "Mawadda" }, handles_are_samples: true },
-    preflight: { recitation_rules: false, religion_rule: true, time_promise: true, silent_warning: true, banned: [], warn: [] },
+    preflight: { recitation_rules: false, religion_rule: true, time_promise: true, silent_warning: true, banned: [], warn: [],
+      audio_policy: { allowed: ["none", "voice", "sfx", "nasheed_vocal_only", "recitation"], vocal_only: true } },
     levers: {
       vocab: {
         hook_type: ["question", "number", "statement", "pov", "pattern", "myth_bust"],
@@ -449,6 +478,7 @@ class Query {
 // Mock preflight (a small subset of _shared/preflight.ts, for the harness only)
 // ---------------------------------------------------------------------------
 
+function wsRowOf(id) { return workspaces.find((w) => w.id === (id ?? "maana")); }
 function mockPreflight(p) {
   const errors = [];
   const warnings = [];
@@ -463,7 +493,16 @@ function mockPreflight(p) {
   if (asset?.manual_audio && p.platform === "instagram" && p.method !== "manual") errors.push("The recitation (igaudio) cut must use the manual-post checklist, not the API.");
   if (p.platform === "youtube" && !(p.options?.title ?? "").trim()) errors.push("YouTube needs a title.");
   if (p.platform === "instagram" && /https?:\/\//.test(cap)) warnings.push("Links in Instagram captions are not clickable. Use the bio link.");
-  if (asset?.audio === "none" && !asset.manual_audio) warnings.push("Silent video: Instagram demotes muted reels (BATCH2_RESEARCH.md §5).");
+  if (p.format !== "carousel" && asset?.audio === "none" && !asset.manual_audio) warnings.push("Silent video: Instagram demotes muted reels (BATCH2_RESEARCH.md §5).");
+  const choice = p.options?.audio?.choice;   // the brand audio policy (a subset of _shared/audio.ts)
+  if (choice) {
+    const allowed = wsRowOf(p.workspace_id)?.preflight?.audio_policy?.allowed ?? ["none"];
+    if (!allowed.includes(choice.kind)) errors.push(`Audio: ${choice.label}: ${choice.kind} is not allowed by this brand's audio policy (allowed: ${allowed.join(", ")})`);
+    if (choice.kind !== "none" && choice.contains_instruments !== false) errors.push(`Audio: ${choice.label}: not confirmed instrument-free`);
+    if (choice.kind === "recitation" && !choice.recitation?.fit_review?.pass) errors.push("Audio: recitation needs a passing fit review from the islamic-correctness gate");
+    if (choice.kind !== "none" && p.platform === "instagram" && p.method !== "manual") errors.push("Audio: the Instagram API cannot add a sound to a carousel. Use the manual checklist (post it in the app) or choose no added sound.");
+    if (choice.kind !== "none" && p.platform === "facebook") errors.push("Audio: Facebook photo posts carry no sound. Choose no added sound.");
+  }
   if (p.workspace_id === "maana") warnings.push("The app is not live yet, so App Store campaign links cannot be generated. The campaign id is reserved for this post.");
   return { ok: errors.length === 0, errors, warnings, checked_at: iso(Date.now()) };
 }
@@ -549,8 +588,12 @@ export async function api(path, body = {}, method = "POST") {
     // The real route returns short-lived signed GitHub URLs; the mock echoes,
     // or maps the fake release URLs back to local files with media=private.
     window.__mockMediaLinks = (window.__mockMediaLinks ?? 0) + 1;
-    const links = Object.fromEntries((body.urls ?? []).map((u) => [u,
-      PRIVATE_MEDIA && u.startsWith(RELEASE_MEDIA) ? `${LOCAL_MEDIA}${u.slice(RELEASE_MEDIA.length)}?sig=mock` : u]));
+    const gen = (u) => {   // generator slides: <brand>-g-<run>-<variant>-<set>-NN.jpg -> the local studio/<set>/ folder
+      const m = /\/([a-z]+-g-[a-z0-9-]+-(4x5|9x16)-\d{2}\.jpg)$/.exec(u);
+      return m ? `${GEN_LOCAL}${m[2]}/${m[1]}` : null;
+    };
+    const links = Object.fromEntries((body.urls ?? []).map((u) => [u, gen(u) ??
+      (PRIVATE_MEDIA && u.startsWith(RELEASE_MEDIA) ? `${LOCAL_MEDIA}${u.slice(RELEASE_MEDIA.length)}?sig=mock` : u)]));
     return { links, expires_in_s: 300 };
   }
   if (path === "sync") return { queued: body.post_id ? 1 : posts.filter((p) => p.status === "live" && p.workspace_id === apiWorkspace).length };
