@@ -81,6 +81,12 @@ export function render(root, { params = {} } = {}) {
   }
 
   function reel() { return store.reels.get(S.reelId) ?? null; }
+  // A carousel from the content-creator post generator: its drafts are made by Send to Studio and launched from Posts.
+  // Launch is for videos; checking one here would make video drafts that cannot work.
+  function isGeneratorCarousel(r) {
+    return !!r && ((r.package && Object.keys(r.package).length > 0)
+      || [...store.assets.values()].some((a) => a.reel_id === r.id && a.kind === "image_set"));
+  }
   function asset() { return store.assets.get(S.assetId) ?? null; }
 
   function onReel() {
@@ -397,6 +403,7 @@ export function render(root, { params = {} } = {}) {
   function problems(rows) {
     const out = [];
     if (!reel()) out.push("Choose a reel.");
+    else if (isGeneratorCarousel(reel())) out.push("This is a carousel from the post generator. Its drafts are already in Posts: open each one there, then Check and Launch.");
     else if (!asset()) out.push("This reel has no video file yet. Sync the library once it renders.");
     if (!Object.keys(rows).length) out.push("Tick at least one platform.");
     if (whenLater.checked) {
