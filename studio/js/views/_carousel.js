@@ -2,6 +2,8 @@
 // one, why, its licence, the brand policy check, the step to do in the app, the alternatives), the gate report,
 // credits and the upload-quality readback. Shown inside a post's Details. Editing the sound changes the draft's
 // options, which clears its pre-flight (guard_posts), so it is checked again before anyone can Launch it.
+// One-click is the default (owner 2026-10-07): Instagram and Facebook carousels start with No added sound and publish
+// by API; a recommended sound is an optional "add it by hand" choice that switches that post to the manual checklist.
 
 import { supa } from "../supa.js";
 import { store } from "../store.js";
@@ -18,6 +20,12 @@ export const MANUAL_QUALITY = {
 
 export function isCarousel(p) {
   return p?.format === "carousel";
+}
+
+/** The method a carousel draft takes for a sound: Instagram and Facebook publish by API only with no added sound. */
+export function methodForSound(p, kind) {
+  if (p.platform === "instagram" || p.platform === "facebook") return kind === "none" ? "api" : "manual";
+  return p.method;
 }
 
 export function slidesOf(p) {
@@ -48,30 +56,41 @@ function audioBlock(p, canEdit) {
   const c = a.choice ?? { label: "No added sound", kind: "none" };
   const rec = a.recommendation ?? {};
   const check = a.policy_check ?? {};
-  const alts = [rec.primary, ...(rec.alternatives ?? [])].filter((x) => x && x.id !== c.id);
+  const alts = [rec.primary, ...(rec.alternatives ?? [])].filter((x) => x && x.id !== c.id && !(x.kind === "none" && (c.kind ?? "none") === "none"));
   const status = check.ok === false ? pill("blocked by the brand policy", "bad") : pill("allowed by the brand policy", "good");
+
+  const NONE = { id: "none", label: "No added sound", kind: "none", licence: "none", delivery: "none" };
+  const byHand = p.platform === "instagram" || p.platform === "facebook";
 
   async function use(alt) {
     const choice = { id: alt.id, label: alt.label, kind: alt.kind, licence: alt.licence, delivery: alt.delivery,
       contains_instruments: alt.kind === "nasheed_vocal_only" ? null : false };
-    const method = p.platform === "instagram" ? (alt.kind === "none" ? "api" : "manual") : p.method;
+    const method = methodForSound(p, alt.kind);
     const opts = { ...(p.options ?? {}), audio: { ...a, choice, manual_step: alt.manual_step ?? null, policy_check: { ok: null, errors: [], warnings: ["changed in Studio: run pre-flight"] } } };
     const { error } = await supa.from("posts").update({ options: opts, method }).eq("id", p.id);
-    toast(error ? `Could not change the sound: ${error.message}` : `Sound set to ${alt.label}. Run pre-flight again.`, error ? "bad" : "good");
+    toast(error ? `Could not change the sound: ${error.message}`
+      : alt.kind === "none" ? "No added sound: this post publishes by API again. Run pre-flight."
+        : `Sound set to ${alt.label}. ${byHand ? "This post is now manual: you add the sound in the app from the checklist." : "Run pre-flight again."}`, error ? "bad" : "good");
   }
 
+  const editable = store.canEdit() && canEdit && p.status === "draft";
+  const isNone = (c.kind ?? "none") === "none";
   return h("div.card.audio-card",
     h("div.row", h("strong", "Sound"), status),
-    h("p", h("b", c.label ?? c.id), h("span.muted", ` · ${fmt.label(c.kind ?? "none")}`)),
+    h("p", h("b", c.label ?? c.id), h("span.muted", ` · ${fmt.label(c.kind ?? "none")}`),
+      byHand ? h("span.small.muted", isNone ? " · publishes by API (one click)" : " · added by hand: manual checklist") : null),
     check.errors?.length ? h("ul.preflight-list.errors", check.errors.map((e) => h("li", e))) : null,
-    a.manual_step ? h("div.notice", h("b", "Do this in the app (the API cannot add a sound): "), a.manual_step) : null,
+    a.manual_step && !isNone ? h("div.notice", h("b", "Do this in the app (the API cannot add a sound): "), a.manual_step) : null,
+    !isNone && byHand && editable ? h("div.row", h("button.btn.small", { onclick: () => use(NONE) }, "Back to no added sound (publish by API)")) : null,
     a.api?.note ? h("p.small.muted", a.api.note) : null,
     rec.primary && rec.primary.id === c.id ? why(rec.primary.why) : null,
     alts.length ? h("details",
-      h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, `Alternatives (${alts.length})`),
+      h("summary", { style: { cursor: "pointer", fontWeight: "700" } },
+        byHand && isNone ? `Optional: add a sound by hand (${alts.length} recommended)` : `Alternatives (${alts.length})`),
+      byHand && isNone ? h("p.small.muted", "Choosing one makes this post manual: you post it in the app from a checklist and add the sound there. The API cannot add a sound to a carousel.") : null,
       h("ul.alts", alts.map((x) => h("li",
         h("div.row", h("b", x.label), h("span.small.muted", `score ${Number(x.score ?? 0).toFixed(2)} · ${x.licence_status ?? ""}`),
-          canEdit && p.status === "draft" ? h("button.btn.small.ghost", { onclick: () => use(x) }, "Use this") : null),
+          editable ? h("button.btn.small.ghost", { onclick: () => use(x) }, byHand && x.kind !== "none" ? "Add by hand" : "Use this") : null),
         why(x.why), x.needs?.length ? h("div.small", "Before using: ", x.needs.join("; ")) : null)))) : null,
     rec.filtered?.length ? h("details",
       h("summary.small", { style: { cursor: "pointer" } }, `Blocked sounds (${rec.filtered.length})`),
@@ -122,6 +141,17 @@ export function carouselSteps(p, copyCaption) {
     ? (a.manual_step ?? `Add the sound "${a.choice.label}".`)
     : "No added sound for this post.";
   const items = slidesOf(p);
+  if (p.platform === "tiktok" && p.method === "manual") {
+    return [
+      ["quality", MANUAL_QUALITY.tiktok],
+      ["download", h("span", `Download the ${items.length} slides (9:16 JPEGs) to the phone: `,
+        ...items.map((it, i) => h("span", i ? " · " : "", mediaLink(h("a", { download: it.name, target: "_blank", rel: "noopener" }, String(i + 1)), it.url))))],
+      ["create", "In TikTok, tap +, then Upload, switch to Photo, and select the slides in order (1 first)."],
+      ["sound", sound],
+      ["caption", h("span", "Paste the caption. ", copyCaption)],
+      ["post", "Tap Post."],
+    ];
+  }
   if (p.platform === "tiktok") {
     return [
       ["quality", MANUAL_QUALITY.tiktok],
@@ -135,9 +165,13 @@ export function carouselSteps(p, copyCaption) {
     ["quality", MANUAL_QUALITY[p.platform] ?? MANUAL_QUALITY.instagram],
     ["download", h("span", `Download the ${items.length} slides (upload-ready JPEGs) to the phone: `,
       ...items.map((it, i) => h("span", i ? " · " : "", mediaLink(h("a", { download: it.name, target: "_blank", rel: "noopener" }, String(i + 1)), it.url))))],
-    ["create", "In Instagram, tap +, then Post, and select the slides in order (1 first)."],
+    ["create", p.platform === "facebook"
+      ? "In the Facebook app, switch to the Page, tap Photo, and select the slides in order (1 first)."
+      : "In Instagram, tap +, then Post, and select the slides in order (1 first)."],
     ["sound", sound],
-    ["alt", "Advanced settings > Write alt text: paste each slide's alt text from Details."],
+    ["alt", p.platform === "facebook"
+      ? "Tap each photo > Alt text: paste each slide's alt text from Details."
+      : "Advanced settings > Write alt text: paste each slide's alt text from Details."],
     ["caption", h("span", "Paste the caption. ", copyCaption)],
     ["post", "Share. Organic only: never boost a post with a platform sound."],
   ];

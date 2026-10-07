@@ -94,6 +94,8 @@ Settings > Developer settings > the token > Repository access > add it; Contents
 
 ### 7. TikTok photo posts by API (optional; until then TikTok carousels use the checklist)
 
+Click-by-click guide with checks: `docs/TIKTOK-PHOTO-VERIFY.md`.
+
 TikTok pulls photos only from a verified domain or URL prefix and follows no redirects.
 
 1. developers.tiktok.com > your app (Mawadda shares Maana's) > Content Posting API > Manage URL properties > add
@@ -130,6 +132,19 @@ development mode for our own accounts (no App Review).
 Known before you start: the generator's 9:16 layout (content box to y 1448) runs into its own footer band (from y
 1418), so every 9:16 render of a full slide fails the footer check and TikTok sends are blocked until that layout
 is fixed (content-creator commit 6a725ae; the check is right to block it).
+
+## 2026-10-07: one-click carousels, Facebook sound by hand, TikTok Direct Post screen
+
+maana `learn-redesign-mockups` b0193e7 and 53f0b9b (no migration). Until the functions are redeployed, the web app's
+**Check and launch all** works (it uses the existing pre-flight route and `confirm_posts`), but a Facebook carousel
+with a sound added by hand is refused by the old pre-flight and the TikTok screen cannot read the account
+(`creator_info` is new). Deploy:
+
+```
+cd "/Volumes/The Wall/Coding/maana" && git pull && supabase functions deploy studio-api studio-worker --project-ref vymyqrxvpzlhzpvsuhya --no-verify-jwt
+```
+
+Rollback: redeploy the previous tip, `42063ec`, the same way as below.
 
 ### Rollback
 

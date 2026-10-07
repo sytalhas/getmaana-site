@@ -21,6 +21,11 @@ const EMAIL = MEMBER === "mawadda"
 const UID = "00000000-0000-4000-8000-00000000000" + ({ owner: 1, editor: 2, viewer: 3 }[ROLE] ?? 9);
 const LOCAL_MEDIA = new URL("../../maana/marketing/", document.baseURI).href;
 const PRIVATE_MEDIA = qs.get("media") === "private";
+// TikTok: tiktok=direct (TIKTOK_DIRECT_POST on, before the audit) | audited (after it); ttphoto=verified (photo link
+// verified, so the generator's TikTok draft is an inbox draft, or ttmethod=api for a direct photo post).
+const TT = qs.get("tiktok") ?? "";
+const TT_PHOTO = qs.get("ttphoto") === "verified";
+const TT_METHOD = qs.get("ttmethod");
 const RELEASE_MEDIA = "https://github.com/sytalhas/maana-media/releases/download/library/";
 const MEDIA = PRIVATE_MEDIA ? RELEASE_MEDIA : LOCAL_MEDIA;
 
@@ -132,6 +137,8 @@ const conns = [
   { id: uuid(), platform: "youtube", account_id: "UCxxxx", account_name: "Maana", status: "connected", scopes: ["youtube.upload", "yt-analytics.readonly"], token_expires_at: null, limits: { audit: "not_audited", quota_units_day: 10000 }, info: {}, last_checked_at: iso(now - 20 * H), last_error: null, created_at: iso(now - 10 * D), updated_at: iso(now - 20 * H) },
   { id: uuid(), platform: "tiktok", account_id: "tt-001", account_name: "@maana.app", status: "error", scopes: ["video.upload", "video.list"], token_expires_at: iso(now - 1 * D), limits: { direct_post_audited: false }, info: {}, last_checked_at: iso(now - 26 * H), last_error: "access_token_invalid: The access token is invalid or not found in the request.", created_at: iso(now - 8 * D), updated_at: iso(now - 26 * H) },
 ];
+if (TT) Object.assign(conns[3], { status: "connected", last_error: null, token_expires_at: iso(now + 300 * D), scopes: ["user.info.basic", "video.upload", "video.list", "video.publish"],
+  limits: { direct_post_audited: TT === "audited" }, info: { display_name: "Maana", direct_post: true, audited: TT === "audited" } });
 
 const vid = (reel, variant) => assets.find((a) => a.reel_id === reel && a.variant === variant)?.id ?? null;
 const P = (x) => ({
@@ -169,10 +176,11 @@ if (GEN_PKG) {
       sha256: null, duration_s: null, width: st.width, height: st.height, audio: null, manual_audio: false, items: st.items, created_at: iso(now - 1 * H) });
   }
   for (const gp of pk.posts) {
-    const method = gp.method;
+    // As studio-api /drafts plans it: TikTok is manual until the photo link is verified.
+    const method = gp.platform === "tiktok" ? (TT_PHOTO ? (TT_METHOD === "api" ? "api" : "inbox_draft") : "manual") : gp.method;
     posts.push(P({ reel_id: pk.package_id, asset_id: setIds[gp.set], platform: gp.platform, post_type: "organic", method, status: "draft",
       format: "carousel", caption: gp.caption, confirmed_by: null, confirmed_at: null, created_at: iso(now - 50 * 60e3),
-      options: { set: gp.set, source: "generator", audio: gp.audio, alt_text: pk.sets[gp.set].items.map((i) => i.alt), ...(gp.platform === "tiktok" ? { auto_add_music: false } : {}) },
+      options: { set: gp.set, source: "generator", audio: gp.platform === "tiktok" && method === "api" ? { ...gp.audio, choice: { id: "none", label: "No added sound", kind: "none" }, manual_step: null } : gp.audio, alt_text: pk.sets[gp.set].items.map((i) => i.alt), ...(gp.platform === "tiktok" ? { auto_add_music: false } : {}) },
       preflight: { ok: true, errors: [], warnings: gp.platform === "tiktok"
         ? ["The app is not live yet, so App Store campaign links cannot be generated. The campaign id is reserved for this post."]
         : ["The app is not live yet, so App Store campaign links cannot be generated. The campaign id is reserved for this post."], checked_at: iso(now - 50 * 60e3) } }));
@@ -501,8 +509,10 @@ function mockPreflight(p) {
     if (choice.kind !== "none" && choice.contains_instruments !== false) errors.push(`Audio: ${choice.label}: not confirmed instrument-free`);
     if (choice.kind === "recitation" && !choice.recitation?.fit_review?.pass) errors.push("Audio: recitation needs a passing fit review from the islamic-correctness gate");
     if (choice.kind !== "none" && p.platform === "instagram" && p.method !== "manual") errors.push("Audio: the Instagram API cannot add a sound to a carousel. Use the manual checklist (post it in the app) or choose no added sound.");
-    if (choice.kind !== "none" && p.platform === "facebook") errors.push("Audio: Facebook photo posts carry no sound. Choose no added sound.");
+    if (choice.kind !== "none" && p.platform === "facebook" && p.method !== "manual") errors.push("Audio: the Facebook API cannot add a sound to a photo post. Use the manual checklist (post it in the Facebook app) or choose no added sound.");
   }
+  if (p.platform === "tiktok" && p.format === "carousel" && p.method !== "manual" && !TT_PHOTO) errors.push("TikTok pulls photos only from a verified URL prefix, which is not set up yet. Use the manual checklist.");
+  if (p.platform === "tiktok" && p.method === "api" && TT === "audited" && !(p.options?.tiktok?.privacy_level && p.options?.tiktok?.declaration)) errors.push("TikTok direct post: choose who can see it (TikTok allows no default privacy).");
   if (p.workspace_id === "maana") warnings.push("The app is not live yet, so App Store campaign links cannot be generated. The campaign id is reserved for this post.");
   return { ok: errors.length === 0, errors, warnings, checked_at: iso(Date.now()) };
 }
@@ -600,7 +610,14 @@ export async function api(path, body = {}, method = "POST") {
   if (path.startsWith("health/")) return { results: conns.filter((c) => c.workspace_id === apiWorkspace && c.platform === path.split("/")[1]).map((c) => ({ id: c.id, status: c.status, last_error: c.last_error })) };
   if (path.startsWith("oauth/")) return { url: `#/w/${apiWorkspace}/connections?ok=Mock%20OAuth%20return:%20connected` };
   if (path.startsWith("connect/")) return { ok: true, message: "Connected from secrets (mock)" };
-  if (path === "action/instagram/attach_manual" || path === "action/tiktok/attach_video") {
+  if (path === "action/tiktok/creator_info") {
+    if (!TT) return { direct_post: false, audited: false, can_post: false, message: "TikTok direct posting is off (TIKTOK_DIRECT_POST). Posts go to the TikTok inbox." };
+    const all = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
+    return { direct_post: true, audited: TT === "audited", can_post: true, creator_nickname: wsRow().name, creator_username: `${wsRow().id}.app`,
+      creator_avatar_url: null, privacy_level_options: TT === "audited" ? all : ["SELF_ONLY"], comment_disabled: false, duet_disabled: false,
+      stitch_disabled: true, max_video_post_duration_sec: 600 };
+  }
+  if (path === "action/instagram/attach_manual" || path === "action/tiktok/attach_video" || path === "action/facebook/attach_manual") {
     patchPost(body.post_id, { status: "live", platform_url: body.url, platform_media_id: "attached", published_at: iso(Date.now()) });
     return { ok: true };
   }

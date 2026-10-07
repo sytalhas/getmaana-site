@@ -37,9 +37,27 @@ the reel (`reels.package`: source run, gate report, credits), one `image_set` as
 and the drafts (`posts.format = 'carousel'`, `options.audio`), then runs pre-flight. Nothing is confirmed: Launch
 works as for any draft. Publishing: Instagram carousel containers, Facebook multi-photo posts, TikTok photo posts
 pulled from signed links under the verified prefix `studio-api/m/` (inbox by default; auto_add_music is never
-set). A sound the platform's API cannot add (all of them for photo posts) makes the Instagram post manual and is a
-step in the TikTok inbox checklist. The local tool signs in as a member (magic link, PKCE; refresh token in the
+set). A sound the platform's API cannot add (all of them for photo posts) makes the Instagram or Facebook post
+manual and is a step in the TikTok inbox checklist. The local tool signs in as a member (magic link, PKCE; refresh token in the
 macOS Keychain), never with the service-role key. Deploy: `STUDIO_SEND_DEPLOY.md`.
+
+**One click is the default (owner 2026-10-07).** Instagram and Facebook carousels arrive with **No added sound** and
+publish by API. Studio > Posts shows "Carousels ready to launch" with one **Check and launch all** button per
+carousel: it runs pre-flight on every draft of that carousel, shows one confirmation listing what publishes where
+(and what stays manual or is blocked, with the reason), and then confirms every API draft that passed in a single
+`studio.confirm_posts` call. Manual drafts are never confirmed by it; a draft whose pre-flight fails is left out;
+nothing launches without that confirmation. A sound is optional: in the generator's Send to Studio window or in a
+draft's Details ("Optional: add a sound by hand"), choosing one switches that platform to the manual checklist
+(the APIs cannot add a sound to a carousel); "Back to no added sound" returns it to the API. Facebook manual posts
+are attached afterwards with their post link (`action/facebook/attach_manual`). TikTok carousels stay manual until
+TikTok verifies Studio's photo URL prefix (`docs/TIKTOK-PHOTO-VERIFY.md`), then go to the TikTok inbox.
+
+**TikTok Direct Post screen.** When direct posting is on (`TIKTOK_DIRECT_POST`), a TikTok post's Details (and the
+TikTok card in Launch) shows TikTok's required screen: the account from creator_info, a preview, editable title
+and caption, privacy with no default, Comment / Duet / Stitch unticked (greyed out when the account disables them),
+the commercial content disclosure, the consent declaration and the processing notice. The choices are stored in
+`posts.options.tiktok`. Before the audit every direct post is private (Only me); after `TIKTOK_AUDITED` the server
+refuses a direct post without these choices. Audit package: `docs/tiktok-audit/`.
 
 ### Upload quality
 
@@ -57,7 +75,7 @@ the apps' upload-quality settings. Files reach the release through content-creat
 ### Safety rails
 
 - **Sound** follows the workspace's `preflight.audio_policy` (owner decisions 2026-10-06): Maana no music (none, voice, natural SFX, recitation); Mawadda vocal-only (the same plus vocal-only nasheeds), no instruments; Qur'an recitation only as whole ayat the post shows, from an allowed source, never mixed with music, low, with a passing islamic-correctness fit review, never in paid.
-- **Nothing is sent to the outside world without a person clicking Confirm.** Posts are created as drafts, pass pre-flight (`_shared/preflight.ts`), then `studio.confirm_posts()` records who confirmed and queues them. The worker refuses unconfirmed posts and re-runs pre-flight before publishing. Editing a confirmed post clears the confirmation.
+- **Nothing is sent to the outside world without a person clicking Confirm.** Posts are created as drafts, pass pre-flight (`_shared/preflight.ts`), then `studio.confirm_posts()` records who confirmed and queues them (one call for several ids, as Launch and Check and launch all do; it is all or nothing). The worker refuses unconfirmed posts and re-runs pre-flight before publishing. Editing a confirmed post clears the confirmation.
 - Browsers cannot set confirmation, pre-flight results, platform ids or publish status (trigger `studio.guard_posts`).
 - Ad objects are created **paused**. Activation is a separate confirmed action and is refused if it would exceed the spend cap in Settings (default $100 total).
 - Pre-flight rules come from the workspace (`workspaces.preflight`). Maana blocks: em dashes; "free plan", "Premium", "trial", "Free to start", bare "no subscription"; time-bound learning promises (TikTok, and all paid); second-person religious copy in paid (Meta personal-attributes policy); recitation cuts outside the Instagram manual path; shelved or retired reels; reels flagged `needs_rerender`; platform length and caption limits. Mawadda blocks em dashes, "no tracking", "ad-free", "exclusive content", warns on spouse-gender assumptions, and keeps the time-promise and paid second-person religion rules (no recitation rules).

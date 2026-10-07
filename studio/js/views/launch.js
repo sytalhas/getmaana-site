@@ -11,6 +11,8 @@ import {
   charCounter, hashtagCount, limitLines, copyText,
 } from "./_reel.js";
 import { mediaSrc, showsMedia } from "../media.js";
+import { tiktokPanel } from "./_tiktok.js";
+import { PRIVACY_LABELS, PROCESSING_NOTE } from "../tiktok_ux.js";
 
 const LIMITS = {
   instagram: { caption: 2200, hashtags: 30 },
@@ -198,9 +200,10 @@ export function render(root, { params = {} } = {}) {
     c.method = p === "instagram"
       ? select([["api", "Publish with the API"], ["manual", "Manual checklist (post it in the app)"]], "api", { onchange: upd })
       : p === "tiktok"
-        ? select([["inbox_draft", "Send to the TikTok inbox as a draft"], ["api", "Direct post (after the TikTok audit)"]], "inbox_draft", { onchange: upd })
+        ? select([["inbox_draft", "Send to the TikTok inbox as a draft"], ["api", "Direct post"]], "inbox_draft", { onchange: upd })
         : null;
     c.caption = h("textarea", { rows: 6, oninput: changed });
+    if (p === "tiktok") c.ttBox = h("div");
     c.capCount = h("div");
     if (p === "youtube") {
       c.title = h("input", { oninput: changed });
@@ -236,6 +239,7 @@ export function render(root, { params = {} } = {}) {
       c.privacy ? field("Privacy", c.privacy,
         "Until Google's API audit passes, uploads from Studio stay private whatever you choose (shown as private until audit).") : null,
       field(captionLabel, c.caption, c.capCount),
+      c.ttBox ?? null,
       c.firstComment ? field("First comment", c.firstComment) : null,
       c.shareFeedWrap ?? null,
       c.graduationWrap ?? null,
@@ -294,11 +298,24 @@ export function render(root, { params = {} } = {}) {
     }
     if (c.p === "tiktok") {
       const conn = connFor("tiktok");
-      const audited = !!(conn?.info?.audited ?? conn?.limits?.direct_post_audited);
-      c.method.querySelector('option[value="api"]').disabled = !audited;
-      if (!audited && c.method.value === "api") c.method.value = "inbox_draft";
+      // Direct posting needs TIKTOK_DIRECT_POST (the video.publish scope); before TikTok's audit it posts privately.
+      const direct = !!(conn?.info?.direct_post || conn?.info?.audited || conn?.limits?.direct_post_audited);
+      c.method.querySelector('option[value="api"]').disabled = !direct;
+      if (!direct && c.method.value === "api") c.method.value = "inbox_draft";
       if (c.method.value === "inbox_draft") {
         notes.push(h("div.hint", "The video lands in the TikTok app's inbox. Someone taps Post there, then pastes the link in Posts."));
+      }
+      const a = asset();
+      if (c.method.value === "api" && c.on.checked && a) {
+        if (!c.tt || c.ttAsset !== a.id) {
+          c.ttAsset = a.id;
+          c.tt = tiktokPanel({ kind: "video", connectionId: conn?.id ?? null, durationS: a.duration_s ?? null, videoUrl: a.url ?? null, onChange: changed });
+          clear(c.ttBox, h("h3", "TikTok post settings"), c.tt.el);
+        }
+      } else if (c.tt) {
+        c.tt = null;
+        c.ttAsset = null;
+        clear(c.ttBox);
       }
     }
     clear(c.note, notes);
@@ -381,6 +398,7 @@ export function render(root, { params = {} } = {}) {
         else options.share_to_feed = c.shareFeed.checked;
       }
       if (c.p === "youtube") Object.assign(options, { title: c.title.value, privacy: c.privacy.value });
+      if (c.p === "tiktok" && c.method.value === "api" && c.tt) options.tiktok = c.tt.value();
       const conn = connFor(c.p);
       rows[c.p] = {
         reel_id: r?.id ?? null,
@@ -406,6 +424,9 @@ export function render(root, { params = {} } = {}) {
     else if (isGeneratorCarousel(reel())) out.push("This is a carousel from the post generator. Its drafts are already in Posts: open each one there, then Check and Launch.");
     else if (!asset()) out.push("This reel has no video file yet. Sync the library once it renders.");
     if (!Object.keys(rows).length) out.push("Tick at least one platform.");
+    for (const c of cards) {
+      if (c.p === "tiktok" && rows.tiktok?.method === "api" && c.tt) out.push(...c.tt.problems().map((x) => `TikTok: ${x}`));
+    }
     if (whenLater.checked) {
       const t = scheduledAt();
       if (!t) out.push("Pick a date and time, or choose Now.");
@@ -540,7 +561,13 @@ export function render(root, { params = {} } = {}) {
         : `organic reel${row.options.share_to_feed ? ", shared to feed" : ", not shared to feed"}`);
       parts.push(row.method === "manual" ? "posted by hand from the checklist in Posts (nothing is sent automatically)" : "published with the API");
     } else if (p === "tiktok") {
-      parts.push(row.method === "inbox_draft" ? "sent to the TikTok inbox as a draft (someone taps Post in the app)" : "direct post");
+      if (row.method === "inbox_draft") parts.push("sent to the TikTok inbox as a draft (someone taps Post in the app)");
+      else {
+        const t = row.options.tiktok ?? {};
+        parts.push(`direct post, who can see it: ${PRIVACY_LABELS[t.privacy_level] ?? "not chosen"}`);
+        parts.push(`comments ${t.allow_comment ? "on" : "off"}, Duet ${t.allow_duet ? "on" : "off"}, Stitch ${t.allow_stitch ? "on" : "off"}`);
+        parts.push(t.disclose ? `disclosed as ${[t.brand_organic && "Your brand", t.branded_content && "Branded content"].filter(Boolean).join(" and ")}` : "no commercial content disclosure");
+      }
     } else if (p === "youtube") {
       parts.push(`Short titled "${row.options.title}", ${row.options.privacy}`);
     } else parts.push("reel published with the API");
@@ -567,7 +594,8 @@ export function render(root, { params = {} } = {}) {
         : ps.some((p) => rows[p].method === "manual")
         ? "The API posts publish to the accounts above. Manual posts get a checklist in Posts. You can cancel a scheduled post in Posts until it goes out."
         : "This publishes to the accounts above. You can cancel a scheduled post in Posts until it goes out.",
-    ], "Launch");
+      rows.tiktok?.method === "api" ? rows.tiktok.options.tiktok?.declaration : null,
+    ].filter(Boolean), "Launch");
     if (!ok) return;
     launchBtn.disabled = true;
     const ids = ps.map((p) => S.drafts[p]);
@@ -579,7 +607,7 @@ export function render(root, { params = {} } = {}) {
     }
     S.launched = true;
     S.drafts = {};
-    toast(`Launched ${ps.length} post${ps.length === 1 ? "" : "s"}. Follow them in Posts.`, "good");
+    toast(`Launched ${ps.length} post${ps.length === 1 ? "" : "s"}. Follow them in Posts.${rows.tiktok?.method === "api" ? ` ${PROCESSING_NOTE}` : ""}`, "good");
     location.hash = href("posts");
   }
 

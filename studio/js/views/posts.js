@@ -10,6 +10,9 @@ import {
 import { POST_PLATFORMS, reelTitle, mergedLatest, fileName, copyText, METRIC_FIELDS, sortReels } from "./_reel.js";
 import { mediaLink } from "../media.js";
 import { carouselPanel, carouselSteps, isCarousel, MANUAL_QUALITY, slidesOf } from "./_carousel.js";
+import { carouselPackages, planLaunch, launchLine, launchIds, packageSummary, PLATFORM_LABEL } from "../oneclick.js";
+import { tiktokPanel } from "./_tiktok.js";
+import { PRIVACY_LABELS, PROCESSING_NOTE } from "../tiktok_ux.js";
 
 const STATUSES = ["draft", "scheduled", "publishing", "awaiting_manual", "inbox_draft", "private_until_audit", "live", "failed", "cancelled"];
 const PLATFORMS = [...POST_PLATFORMS, "meta_ads"];
@@ -39,6 +42,7 @@ export function render(root, { params = {} } = {}) {
 
   const countEl = h("p");
   const tableBox = h("div");
+  const packagesBox = h("div");
 
   clear(root,
     h("div.view-head",
@@ -49,7 +53,22 @@ export function render(root, { params = {} } = {}) {
     h("div.filters",
       field("Platform", fPlatform), field("Status", fStatus), field("Type", fType),
       h("label.field", h("span.field-label", "Reel"), reelWrap)),
+    packagesBox,
     tableBox);
+
+  // Carousel packages from the post generator: one "Check and launch all" per package.
+  function renderPackages() {
+    const pk = carouselPackages([...store.posts.values()]);
+    if (!pk.size || !canEdit) return clear(packagesBox);
+    clear(packagesBox, h("section.card.stack.packages", { style: { marginBottom: "16px" } },
+      h("h3", { style: { margin: "0" } }, `Carousels ready to launch (${pk.size})`),
+      h("p.small.muted", { style: { margin: "0" } }, "Each carousel's drafts launch together: Studio runs pre-flight on every draft, shows you one list of what publishes where, and launches only after you confirm. Drafts with a sound you add by hand stay manual."),
+      [...pk.entries()].map(([reelId, drafts]) => h("div.row.between.package-row", { style: { gap: "10px", borderTop: "1px solid var(--line)", paddingTop: "10px" } },
+        h("div", { style: { minWidth: "0", flex: "1 1 260px" } },
+          h("strong", reelTitle(reelId)),
+          h("div.small.muted", drafts.map((p) => `${PLATFORM_LABEL[p.platform]} (${p.method === "manual" ? "manual" : p.method === "inbox_draft" ? "TikTok inbox" : "API"})`).join(" · "))),
+        h("button.btn.coral", { onclick: (e) => launchPackage(reelId, e.currentTarget), title: packageSummary(drafts) }, "Check and launch all")))));
+  }
 
   function filtered() {
     return [...store.posts.values()]
@@ -168,11 +187,63 @@ export function render(root, { params = {} } = {}) {
   }
 
   renderTable();
+  renderPackages();
   if (params.post && store.posts.has(params.post)) openDetail(params.post);
 
   return store.on((table) => {
     if (["posts", "reels", "metrics_snapshots", "*"].includes(table)) renderTable();
+    if (["posts", "reels", "*"].includes(table)) renderPackages();
   });
+}
+
+// ---------------------------------------------------------------------------
+// One-click launch for a carousel package (rules in ../oneclick.js)
+// ---------------------------------------------------------------------------
+
+function connLabel(p) {
+  const list = [...store.connections.values()].filter((c) => c.platform === p.platform);
+  const c = list.find((x) => x.id === p.connection_id) ?? list.find((x) => x.status !== "disconnected") ?? null;
+  return c ? (c.account_name ?? c.account_id) : null;
+}
+
+export async function launchPackage(reelId, btn) {
+  const drafts = [...store.posts.values()].filter((p) => p.reel_id === reelId && p.format === "carousel" && p.status === "draft");
+  if (!drafts.length) return toast("This carousel has no drafts left to launch.", "warn");
+  if (btn) { btn.disabled = true; btn.textContent = "Checking"; }
+  const results = {};
+  try {
+    // Pre-flight on every draft that could launch by API (manual ones are checked when launched from Details).
+    await Promise.all(drafts.filter((p) => p.method !== "manual").map((p) => api("preflight", { post_id: p.id })
+      .then((r) => { results[p.id] = r; })
+      .catch((e) => { results[p.id] = { ok: false, errors: [`Pre-flight could not run: ${e.message}`] }; })));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Check and launch all"; }
+  }
+  const plan = planLaunch(drafts, results);
+  const when = (p) => (p.scheduled_at && new Date(p.scheduled_at) > new Date() ? fmt.dateTime(p.scheduled_at) : null);
+  const lines = [
+    `Carousel: ${reelTitle(reelId)} (${slidesOf(drafts[0]).length} slides).`,
+    plan.launch.length ? h("strong", `Launches now (${plan.launch.length}):`) : h("strong", "Nothing can launch by API right now."),
+    ...plan.launch.map(({ post }) => `✓ ${launchLine(post, { slides: slidesOf(post).length, when: when(post), account: connLabel(post) })}`),
+    ...(plan.manual.length ? [h("strong", `Stays manual, not launched by this (${plan.manual.length}):`),
+      ...plan.manual.map(({ post, why }) => `• ${PLATFORM_LABEL[post.platform]} ${why}`)] : []),
+    ...(plan.ownScreen.length ? [h("strong", `Needs its own screen (${plan.ownScreen.length}):`),
+      ...plan.ownScreen.map(({ post, why }) => `• ${PLATFORM_LABEL[post.platform]}: ${why}`)] : []),
+    ...(plan.blocked.length ? [h("strong", { style: { color: "var(--red)" } }, `Blocked by pre-flight, not launched (${plan.blocked.length}):`),
+      ...plan.blocked.map(({ post, why }) => `✗ ${PLATFORM_LABEL[post.platform]}: ${why}`)] : []),
+    plan.launch.length ? "This publishes to the accounts above. You can cancel a scheduled post in Posts until it goes out." : null,
+  ].filter(Boolean);
+  if (!plan.launch.length) {
+    await confirmAction(`Launch ${reelTitle(reelId)}?`, lines, "OK");
+    return;
+  }
+  const ok = await confirmAction(`Launch ${plan.launch.length} post${plan.launch.length === 1 ? "" : "s"} of this carousel?`, lines,
+    `Launch ${plan.launch.length}`);
+  if (!ok) return;
+  const ids = launchIds(plan);
+  const { error } = await supa.rpc("confirm_posts", { p_ids: ids });
+  if (error) return toast(`Launch failed, nothing was launched: ${error.message}`, "bad");
+  toast(`Launched ${ids.length} post${ids.length === 1 ? "" : "s"}.${plan.manual.length ? ` ${plan.manual.length} manual draft${plan.manual.length === 1 ? "" : "s"} still wait${plan.manual.length === 1 ? "s" : ""} for you.` : ""}${plan.launch.some(({ post }) => post.platform === "tiktok") ? ` ${PROCESSING_NOTE}` : ""}`, "good");
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +253,7 @@ export function render(root, { params = {} } = {}) {
 function openDetail(id) {
   const canEdit = store.canEdit();
   const top = h("div");
+  const cache = {};   // the TikTok screen survives live re-renders (keeps the person's choices; one creator_info read)
   const timeline = h("div");
   const history = h("div");
 
@@ -193,6 +265,7 @@ function openDetail(id) {
     clear(top,
       h("div.row", pill(p.status, statusKind(p.status)), h("span.muted", `${PLATFORM_NAMES[p.platform]} · ${fmt.label(p.post_type)} · ${fmt.label(p.method)}`)),
       p.error ? h("div.notice.bad", p.error) : null,
+      p.platform === "tiktok" && ["scheduled", "publishing"].includes(p.status) ? h("div.notice.info", PROCESSING_NOTE) : null,
       p.status === "private_until_audit"
         ? h("div.notice", "YouTube keeps uploads from unaudited API projects private until Google's audit passes. The owner can apply from Connections.") : null,
       h("div.grid.cols-3",
@@ -216,7 +289,10 @@ function openDetail(id) {
         pf.errors?.length ? h("ul.preflight-list.errors", pf.errors.map((e) => h("li", e))) : null,
         pf.warnings?.length ? h("ul.preflight-list.warnings", pf.warnings.map((w) => h("li", w))) : null)
         : h("p.muted", "Not checked yet."),
-      canEdit && p.status === "draft" ? draftActions(p) : null);
+      canEdit && p.status === "draft" ? draftActions(p, cache) : null,
+      canEdit && p.status === "draft" && isCarousel(p) && [...store.posts.values()].filter((x) => x.reel_id === p.reel_id && x.format === "carousel" && x.status === "draft").length > 1
+        ? h("div.row.end", h("span.small.muted", "Or launch every draft of this carousel together:"),
+          h("button.btn.ghost", { onclick: (e) => launchPackage(p.reel_id, e.currentTarget) }, "Check and launch all")) : null);
 
     const jobs = [...store.jobs.values()].filter((j) => j.post_id === id);
     const events = [
@@ -258,8 +334,77 @@ function openDetail(id) {
   return m;
 }
 
+// A TikTok draft: inbox or direct post (direct needs TIKTOK_DIRECT_POST; carousels also need the verified photo link).
+function tiktokMethod(p) {
+  if (p.platform !== "tiktok" || p.method === "manual") return null;
+  const conn = [...store.connections.values()].find((c) => c.platform === "tiktok" && c.status !== "disconnected");
+  if (!conn?.info?.direct_post && p.method !== "api") return null;
+  const sel = select([["inbox_draft", "Send to the TikTok inbox as a draft"], ["api", "Direct post (you choose privacy and settings)"]], p.method, {
+    onchange: async (e) => {
+      const { error } = await supa.from("posts").update({ method: e.target.value }).eq("id", p.id).eq("status", "draft");
+      toast(error ? `Could not change: ${error.message}` : "Method changed. Pre-flight runs again at Launch.", error ? "bad" : "good");
+    },
+  });
+  return field("TikTok method", sel);
+}
+
+// A TikTok direct post: TikTok's own screen (creator, privacy, interactions, disclosure, declaration), then one
+// confirmation. The choices are saved to options.tiktok, which clears pre-flight, so pre-flight runs again first.
+function tiktokDirectActions(p, cache) {
+  const a = p.asset_id ? store.assets.get(p.asset_id) : null;
+  if (!cache.tt || cache.ttFor !== p.id) {
+    cache.ttFor = p.id;
+    cache.tt = tiktokPanel({
+      kind: isCarousel(p) ? "photo" : "video", connectionId: p.connection_id ?? null, durationS: a?.duration_s ?? null,
+      photos: isCarousel(p) ? slidesOf(p).map((i) => i.url) : [], videoUrl: isCarousel(p) ? null : a?.url ?? null,
+      saved: p.options?.tiktok ?? null, caption: p.caption ?? "", onChange: () => { cache.btn && (cache.btn.disabled = cache.tt.problems().length > 0); },
+    });
+  }
+  const tt = cache.tt;
+  const btn = h("button.btn.coral", {
+    disabled: tt.problems().length > 0,
+    onclick: async () => {
+      const probs = tt.problems();
+      if (probs.length) return toast(probs[0], "warn");
+      btn.disabled = true;
+      try {
+        const cur = store.posts.get(p.id) ?? p;
+        const value = tt.value();
+        const text = tt.caption() ?? cur.caption;
+        if (JSON.stringify(cur.options?.tiktok ?? null) !== JSON.stringify(value) || text !== cur.caption) {
+          const { error } = await supa.from("posts").update({ caption: text, options: { ...(cur.options ?? {}), tiktok: value } }).eq("id", p.id).eq("status", "draft");
+          if (error) return toast(`Could not save the TikTok settings: ${error.message}`, "bad");
+        }
+        const r = await api("preflight", { post_id: p.id });
+        if (!r.ok) return toast(`Pre-flight blocked this post: ${r.errors?.[0] ?? ""}`, "warn");
+        const c = tt.creator();
+        const yes = await confirmAction(`Post to TikTok as ${c?.creator_nickname ?? "this account"}?`, [
+          isCarousel(p) ? `Photo post: ${reelTitle(p.reel_id)}, ${slidesOf(p).length} photos.` : `Video: ${reelTitle(p.reel_id)}.`,
+          `Who can see it: ${PRIVACY_LABELS[value.privacy_level] ?? value.privacy_level}. Comments ${value.allow_comment ? "on" : "off"}${isCarousel(p) ? "" : `, Duet ${value.allow_duet ? "on" : "off"}, Stitch ${value.allow_stitch ? "on" : "off"}`}.`,
+          value.disclose ? `Disclosed as ${[value.brand_organic && "Your brand", value.branded_content && "Branded content"].filter(Boolean).join(" and ")}.` : "No commercial content disclosure.",
+          value.title ? `Title: ${value.title}` : null,
+          `Caption ${(text ?? "").length} characters.`,
+          value.declaration,
+          "Nothing is sent to TikTok until you press Post.",
+        ].filter(Boolean), "Post");
+        if (!yes) return;
+        const { error } = await supa.rpc("confirm_posts", { p_ids: [p.id] });
+        toast(error ? `Launch failed: ${error.message}` : `Confirmed and queued. ${PROCESSING_NOTE}`, error ? "bad" : "good");
+      } catch (e) {
+        toast(`Could not launch: ${e.message}`, "bad");
+      } finally {
+        btn.disabled = false;
+      }
+    },
+  }, "Post to TikTok");
+  cache.btn = btn;
+  return h("div.stack", h("h3", "TikTok post settings"), tt.el, h("div.row.end", btn));
+}
+
 // A draft (new, or a failed post reset to draft) can be checked and confirmed here.
-function draftActions(p) {
+function draftActions(p, cache = {}) {
+  const method = tiktokMethod(p);
+  if (p.platform === "tiktok" && p.method === "api") return h("div.stack", method, tiktokDirectActions(p, cache));
   const checkBtn = h("button.btn", {
     onclick: async () => {
       checkBtn.disabled = true;
@@ -291,7 +436,7 @@ function draftActions(p) {
       toast(error ? `Launch failed: ${error.message}` : "Confirmed and queued", error ? "bad" : "good");
     },
   }, "Launch");
-  return h("div.row.end", checkBtn, confirmBtn);
+  return h("div.stack", method, h("div.row.end", checkBtn, confirmBtn));
 }
 
 function manualMetricsForm(postId) {
@@ -336,6 +481,7 @@ function openManual(id) {
   const p = store.posts.get(id);
   if (!p) return;
   const tiktok = p.platform === "tiktok";
+  const facebook = p.platform === "facebook";
   const reel = store.reels.get(p.reel_id);
   const asset = p.asset_id ? store.assets.get(p.asset_id) : null;
   const saved = { ...(p.manual_checklist ?? {}) };
@@ -380,18 +526,18 @@ function openManual(id) {
   }
 
   const ttHandle = String(store.copy("handles", {})?.tiktok ?? "@account").replace(/^@?/, "@");
-  const url = h("input", { type: "url", placeholder: tiktok ? `https://www.tiktok.com/${ttHandle}/video/...` : "https://www.instagram.com/reel/..." });
+  const url = h("input", { type: "url", placeholder: tiktok ? `https://www.tiktok.com/${ttHandle}/video/...` : facebook ? "https://www.facebook.com/.../posts/..." : "https://www.instagram.com/reel/..." });
   const attach = h("button.btn.primary", { type: "submit" }, "Attach and start syncing");
-  const pattern = tiktok ? /^https:\/\/(www\.|vm\.)?tiktok\.com\//i : /^https:\/\/(www\.)?instagram\.com\/(reel|reels|p)\//i;
+  const pattern = tiktok ? /^https:\/\/(www\.|vm\.)?tiktok\.com\//i : facebook ? /^https:\/\/(www\.|m\.|web\.)?facebook\.com\//i : /^https:\/\/(www\.)?instagram\.com\/(reel|reels|p)\//i;
   const n = steps.length + 1;
   const form = h("form.stack", {
     onsubmit: async (e) => {
       e.preventDefault();
       const v = url.value.trim();
-      if (!pattern.test(v)) return toast(tiktok ? "Paste the TikTok video link" : "Paste the Instagram reel permalink (instagram.com/reel/...)", "warn");
+      if (!pattern.test(v)) return toast(tiktok ? "Paste the TikTok video link" : facebook ? "Paste the Facebook post link (Share > Copy link)" : "Paste the Instagram permalink (instagram.com/p/... or /reel/...)", "warn");
       attach.disabled = true;
       try {
-        await api(tiktok ? "action/tiktok/attach_video" : "action/instagram/attach_manual", { post_id: id, url: v });
+        await api(tiktok ? "action/tiktok/attach_video" : facebook ? "action/facebook/attach_manual" : "action/instagram/attach_manual", { post_id: id, url: v });
         await saveStep("link", true);
         toast("Attached. Insights will sync automatically.", "good");
         m.close();
@@ -402,15 +548,17 @@ function openManual(id) {
       }
     },
   },
-  field(tiktok ? `${n}. Paste the TikTok link here` : `${n}. Paste the Instagram permalink here`, url,
+  field(tiktok ? `${n}. Paste the TikTok link here` : facebook ? `${n}. Paste the Facebook post link here` : `${n}. Paste the Instagram permalink here`, url,
     "Studio finds the post by this link, marks it live and pulls its insights like any other post."),
   h("div.row.end", attach));
 
   const m = modal(`${tiktok ? "Finish in TikTok" : "Post by hand"}: ${reelTitle(p.reel_id)}`, [
     isCarousel(p)
       ? h("p", tiktok
-        ? "These slides were sent to TikTok as a photo draft. Add the sound in TikTok (its API cannot) and post it there."
-        : "This carousel goes up by hand because its sound can only be added in the Instagram app. Tick each step as you go, then paste the link back.")
+        ? (p.method === "manual"
+          ? "Post these 9:16 slides in the TikTok app (Studio's photo link is not verified by TikTok yet). Tick each step as you go, then paste the link back."
+          : "These slides were sent to TikTok as a photo draft. Add the sound in TikTok (its API cannot) and post it there.")
+        : `This carousel goes up by hand because you chose a sound, which only the ${facebook ? "Facebook" : "Instagram"} app can add. Tick each step as you go, then paste the link back.`)
       : tiktok
       ? h("p", "This video was sent to TikTok as a draft. It is not public until someone posts it in the app.")
       : store.recitation()
