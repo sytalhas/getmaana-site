@@ -87,6 +87,24 @@ export function launchIds(plan) {
   return plan.launch.map((x) => x.post.id);
 }
 
+/** The confirmation's plain summary, one line per platform (content-creator LRN-47: plain summary first, details
+ *  collapsed). Returns [{platform, kind: "launch"|"manual"|"own"|"blocked", text}] in the package's order. */
+export function launchSummary(plan, { when = () => null } = {}) {
+  const rows = [
+    ...plan.launch.map(({ post }) => ({ post, kind: "launch",
+      text: post.method === "inbox_draft" ? `goes to your TikTok drafts${when(post) ? ` at ${when(post)}` : " now"}: you tap Post in the app`
+        : `goes out ${when(post) ? `at ${when(post)}` : "now"}` })),
+    ...plan.manual.map(({ post }) => ({ post, kind: "manual",
+      text: post.platform !== "tiktok" && post.options?.audio?.choice && post.options.audio.choice.kind !== "none"
+        ? "stays with you: you post it in the app with the sound (checklist in its Details)"
+        : "stays with you: you post it from its checklist (in its Details)" })),
+    ...plan.ownScreen.map(({ post }) => ({ post, kind: "own", text: "needs its own TikTok screen: open its Details" })),
+    ...plan.blocked.map(({ post, why }) => ({ post, kind: "blocked", text: `not launched: ${why}` })),
+  ];
+  return rows.sort((a, b) => order(a.post.platform) - order(b.post.platform))
+    .map(({ post, kind, text }) => ({ platform: post.platform, kind, text: `${PLATFORM_LABEL[post.platform] ?? post.platform}: ${text}` }));
+}
+
 /** The button label for a package, e.g. "Check and launch all (2 by API, 1 manual)". */
 export function packageSummary(drafts) {
   const api = drafts.filter((p) => p.method !== "manual" && !(p.platform === "tiktok" && p.method === "api")).length;

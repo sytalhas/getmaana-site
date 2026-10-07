@@ -10,7 +10,7 @@ import {
 import { POST_PLATFORMS, reelTitle, mergedLatest, fileName, copyText, METRIC_FIELDS, sortReels } from "./_reel.js";
 import { mediaLink } from "../media.js";
 import { carouselPanel, carouselSteps, isCarousel, MANUAL_QUALITY, slidesOf } from "./_carousel.js";
-import { carouselPackages, planLaunch, launchLine, launchIds, packageSummary, PLATFORM_LABEL } from "../oneclick.js";
+import { carouselPackages, planLaunch, launchLine, launchIds, launchSummary, packageSummary, PLATFORM_LABEL } from "../oneclick.js";
 import { tiktokPanel } from "./_tiktok.js";
 import { PRIVACY_LABELS, PROCESSING_NOTE } from "../tiktok_ux.js";
 
@@ -221,18 +221,20 @@ export async function launchPackage(reelId, btn) {
   }
   const plan = planLaunch(drafts, results);
   const when = (p) => (p.scheduled_at && new Date(p.scheduled_at) > new Date() ? fmt.dateTime(p.scheduled_at) : null);
+  // Plain summary first, one line per platform; the full lines (slides, sound, caption, account) behind Details.
+  const MARK = { launch: "✓", manual: "•", own: "•", blocked: "✗" };
   const lines = [
-    `Carousel: ${reelTitle(reelId)} (${slidesOf(drafts[0]).length} slides).`,
-    plan.launch.length ? h("strong", `Launches now (${plan.launch.length}):`) : h("strong", "Nothing can launch by API right now."),
-    ...plan.launch.map(({ post }) => `✓ ${launchLine(post, { slides: slidesOf(post).length, when: when(post), account: connLabel(post) })}`),
-    ...(plan.manual.length ? [h("strong", `Stays manual, not launched by this (${plan.manual.length}):`),
-      ...plan.manual.map(({ post, why }) => `• ${PLATFORM_LABEL[post.platform]} ${why}`)] : []),
-    ...(plan.ownScreen.length ? [h("strong", `Needs its own screen (${plan.ownScreen.length}):`),
-      ...plan.ownScreen.map(({ post, why }) => `• ${PLATFORM_LABEL[post.platform]}: ${why}`)] : []),
-    ...(plan.blocked.length ? [h("strong", { style: { color: "var(--red)" } }, `Blocked by pre-flight, not launched (${plan.blocked.length}):`),
-      ...plan.blocked.map(({ post, why }) => `✗ ${PLATFORM_LABEL[post.platform]}: ${why}`)] : []),
-    plan.launch.length ? "This publishes to the accounts above. You can cancel a scheduled post in Posts until it goes out." : null,
-  ].filter(Boolean);
+    h("p.small.muted", `${reelTitle(reelId)} · ${slidesOf(drafts[0]).length} slides`),
+    h("ul.launch-summary", launchSummary(plan, { when }).map((r) => h(`li.${r.kind}`, h("span.mark", MARK[r.kind]), r.text))),
+    plan.launch.length ? "Nothing else changes. You can cancel a scheduled post in Posts until it goes out." : "Nothing can go out from here right now.",
+    h("details.small",
+      h("summary", "Details"),
+      h("ul.launch-details",
+        ...plan.launch.map(({ post }) => h("li", launchLine(post, { slides: slidesOf(post).length, when: when(post), account: connLabel(post) }))),
+        ...plan.manual.map(({ post, why }) => h("li", `${PLATFORM_LABEL[post.platform]} ${why}`)),
+        ...plan.ownScreen.map(({ post, why }) => h("li", `${PLATFORM_LABEL[post.platform]}: ${why}`)),
+        ...plan.blocked.map(({ post, why }) => h("li", `${PLATFORM_LABEL[post.platform]}: blocked by pre-flight: ${why}`)))),
+  ];
   if (!plan.launch.length) {
     await confirmAction(`Launch ${reelTitle(reelId)}?`, lines, "OK");
     return;

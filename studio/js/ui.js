@@ -45,27 +45,105 @@ export function toast(msg, kind = "info") {
   setTimeout(() => t.remove(), 4800);
 }
 
-/** Modal dialog. Returns {close, el}. content is a Node or array. */
+// ---------------------------------------------------------------------------
+// Modals (content-creator LRN-47). Owner, 2026-10-07: "when im in a modal i can be taken to other pages and
+// navigation is annoying". A <dialog> opened with showModal() already makes the page behind inert and traps focus.
+// On top of that: the page does not scroll behind it, focus returns to what opened it, browser Back closes the
+// dialog instead of changing page, a link inside closes the dialog first, a hash change from code closes it (nothing
+// stays open over another page), a busy dialog does not close, and the footer buttons stay in view.
+// ---------------------------------------------------------------------------
+
+const open = [];      // open dialogs, top last
+let ignorePops = 0;
+let seq = 0;
+let lastTrigger = null;   // the last button or link used: a dialog opened after an await (its button disabled
+                          // meanwhile, so focus fell to the page) still returns focus there
+
+if (typeof window !== "undefined") {
+  window.addEventListener("popstate", () => {
+    if (ignorePops > 0) { ignorePops--; return; }
+    const top = open[open.length - 1];
+    if (!top) return;
+    if (top.busy) { history.pushState({ studioModal: top.id }, "", location.href); toast("Wait until it has finished", "warn"); return; }
+    top.close({ fromHistory: true });
+  });
+  // Registered before the router's own listener (ui.js loads first), so dialogs close before the view changes.
+  window.addEventListener("hashchange", () => {
+    while (open.length) open[open.length - 1].close({ fromHistory: true, force: true });
+  });
+  document.addEventListener("pointerdown", (e) => { lastTrigger = e.target.closest?.("button, a[href], [tabindex]") ?? lastTrigger; }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") lastTrigger = document.activeElement; }, true);
+  document.addEventListener("click", (e) => {
+    const top = open[open.length - 1];
+    const a = top && e.target.closest?.("a[href]");
+    if (!a || !top.el.contains(a) || a.target === "_blank" || a.hasAttribute("download") || e.metaKey || e.ctrlKey) return;
+    const url = new URL(a.href, location.href);
+    if (url.origin !== location.origin || url.pathname !== location.pathname) return;
+    e.preventDefault();
+    if (top.busy) { toast("Wait until it has finished", "warn"); return; }
+    top.close({ force: true });
+    location.hash = url.hash;     // close() leaves its history entry behind when the page changes right after
+  }, true);
+}
+
+/** Focus what opened the dialog; when the view re-rendered meanwhile, the same-looking control in its place. */
+function focusBack(t) {
+  if (!t) return;
+  if (!t.isConnected) {
+    const label = t.textContent.trim();
+    t = [...document.querySelectorAll(t.tagName)].find((x) => !x.closest("dialog") && x.textContent.trim() === label) ?? null;
+  }
+  t?.focus({ preventScroll: true });
+}
+
+/** Modal dialog. Returns {close, el, busy(on)}. content is a Node or array. A trailing `.row.end` in the content
+ *  becomes the footer that stays in view while the body scrolls. */
 export function modal(title, content, { wide = false, onClose } = {}) {
+  const body = h("div.modal-body", content);
   const dlg = h("dialog.modal" + (wide ? ".wide" : ""),
     h("header.modal-head", h("h2", title), h("button.icon-btn", { "aria-label": "Close", onclick: () => close() }, "×")),
-    h("div.modal-body", content));
+    body);
+  const last = body.lastElementChild;
+  if (last?.matches(".row.end")) { last.classList.add("modal-foot"); dlg.append(last); }
+  const active = document.activeElement;
+  const trigger = active && active !== document.body ? active : lastTrigger;
+  const entry = { id: ++seq, el: dlg, busy: false, trigger, closed: false };
   document.body.append(dlg);
   dlg.showModal();
-  function close() {
-    dlg.close();
+  document.documentElement.classList.add("modal-open");
+  open.push(entry);
+  history.pushState({ studioModal: entry.id }, "", location.href);
+
+  function close({ fromHistory = false, force = false } = {}) {
+    if (entry.closed) return true;
+    if (entry.busy && !force) { toast("Wait until it has finished", "warn"); return false; }
+    entry.closed = true;
+    open.splice(open.indexOf(entry), 1);
+    if (dlg.open) dlg.close();
     dlg.remove();
+    if (!open.length) document.documentElement.classList.remove("modal-open");
+    focusBack(entry.trigger);
+    if (!fromHistory) {
+      // Drop the dialog's history entry, unless the code that closed it navigates right away (then Back from the
+      // new page simply lands on the old one).
+      const here = location.href;
+      setTimeout(() => {
+        if (location.href === here && history.state?.studioModal === entry.id) { ignorePops++; history.back(); }
+      }, 0);
+    }
     onClose?.();
+    return true;
   }
+  entry.close = close;
   dlg.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
-  return { close, el: dlg };
+  return { close: () => close(), el: dlg, busy: (on) => { entry.busy = !!on; dlg.classList.toggle("busy", entry.busy); } };
 }
 
 /** One-click confirmation for outward actions. Resolves true/false. */
 export function confirmAction(title, lines, cta = "Confirm") {
   return new Promise((resolve) => {
     const m = modal(title, [
-      h("div.confirm-lines", lines.map((l) => h("p", l))),
+      h("div.confirm-lines", lines.map((l) => (l instanceof Node && /^(UL|OL|DETAILS|DIV|P)$/.test(l.tagName) ? l : h("p", l)))),
       h("div.row.end",
         // Resolve before close(): close() fires onClose, which resolves false.
         h("button.btn.ghost", { onclick: () => { resolve(false); m.close(); } }, "Cancel"),
