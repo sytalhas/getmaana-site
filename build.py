@@ -38,7 +38,7 @@ PAGES = [  # path, title, description, sitemap priority
     ("/", None, None, "1.0"),
     ("/privacy/", "Privacy Policy", "How Maana handles your information.", "0.5"),
     ("/terms/", "Terms of Use", "The terms for using Maana.", "0.5"),
-    ("/support/", "Support", "Help with Maana: subscriptions, restoring purchases, free Premium, reporting a word and deleting your account.", "0.7"),
+    ("/support/", "Support", "Help with Maana: Supporter plans and tips, restoring purchases, reporting a word and deleting your account.", "0.7"),
     ("/delete-account/", "Delete your account", "How to delete your Maana account and data.", "0.4"),
 ]
 
@@ -83,7 +83,6 @@ def legal_values():
         "contact_block": "  \n".join(contact),
         "fonts_bullet": fonts,
         "report_retention": S.get("report_retention") or "",
-        "grant_retention": S.get("grant_retention") or "",
         "regional_rights": (" " + rr) if rr else "",
         "attributions": att_md,
         "governing_law": law,
