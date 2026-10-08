@@ -78,6 +78,24 @@ optional captions, hashtags, YouTube titles and alt text written by Claude Code 
   (`oneclick.js draftPackages`); a video draft's Details shows its sound, the checks before sending and where it came
   from (`_carousel.js packagePanel`).
 
+### Add your own: uploads in Studio (owner 2026-10-08, content-creator LRN-52)
+
+Library > **Add your own** (editors; `#/w/<ws>/upload`, `js/views/upload.js`, rules in `js/upload_rules.js`). A
+member uploads one reel (MP4, up to 95 MB) or 1 to 10 images and writes the caption by hand: no AI captioning and no AI
+brand reviewers on this path (the owner's decision). A reminder of what to check (per brand: app facts, Qur'an and
+hadith word for word with the reference, no rulings, spouse wording, modesty, the sound rules) sits next to the button,
+in each draft's Details and in Check and launch all; it never blocks. Studio's own pre-flight runs as for every draft.
+
+- **Files stay in the brand's GitHub release.** The browser cannot write to GitHub, so `POST /upload?workspace=&upload=&slot=`
+  (`_shared/upload.ts`) takes each file as the request body and puts it in `workspaces.media_release` with
+  `GITHUB_MEDIA_WRITE_TOKEN`, else `GITHUB_MEDIA_TOKEN`; that token needs Contents: Read and write on the media repos.
+  Names are built on the server (`<ws>-u-<id>-4x5-01.jpg`, `<ws>-u-<id>.mp4`, `-poster.jpg`); bytes are sniffed.
+- **Images** are drawn in the browser at each platform's size (JPEG 0.95, framed in the edge colour, never cropped; a
+  JPEG already at the exact size goes as it is). **Reels** go as they are; the browser makes the poster.
+- **Drafts**: the page sends a `studio-draft/1` package with a `u-` id to `/drafts`: `reels.batch` `uploaded`,
+  `reels.package.checked = false` and the reel flag `unchecked_upload` (a pre-flight warning). From there it is a normal
+  reel: Ready to launch in Posts, Launch for reels, levers, experiments, the calendar and metrics.
+
 ### Upload quality
 
 Studio sends the original file to every platform (resumable byte uploads for Instagram, Facebook and YouTube,

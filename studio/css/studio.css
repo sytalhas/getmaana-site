@@ -251,3 +251,27 @@ dialog.modal.busy { cursor: progress; }
 .launch-details { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); }
 .confirm-lines details > summary, .audio-card details > summary { cursor: pointer; font-weight: 700; }
 .confirm-lines p { margin: 0 0 8px; }
+
+/* Add your own (content-creator LRN-52): uploads in Studio, captions by hand, a reminder instead of the AI reviewers */
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+.upload-grid [hidden], .upload-done [hidden], .upload-grid[hidden] { display: none !important; }
+.upload-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 16px; align-items: start; }
+.upload-reminder { position: sticky; top: 16px; border-left: 4px solid var(--coral); }
+.upload-reminder h3 { margin: 0; }
+.upload-reminder ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.upload-reminder p { margin: 0; }
+.upload-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 26px 16px; border: 1.5px dashed var(--line); border-radius: var(--radius); cursor: pointer; background: var(--paper); }
+.upload-drop:hover, .upload-drop.over { border-color: var(--side); background: var(--paper-2); }
+.upload-drop:focus-within { outline: 2px solid var(--side); outline-offset: 2px; }
+.upload-video { width: 100%; max-height: 480px; border-radius: 10px; background: #000; }
+.upload-plats .check, .upload-sound .check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+.upload-more > summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.upload-more[open] { display: grid; gap: 10px; }
+.upload-progress { display: grid; gap: 6px; }
+.upload-progress .bar-fill { width: 0; transition: width .2s ease; }
+.upload-done h2 { margin: 0; }
+.notice.unchecked { background: var(--amber-bg); color: inherit; border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent); }
+.notice.unchecked ul { margin: 6px 0 0; padding-left: 18px; }
+.unchecked-reminder > summary { cursor: pointer; font-weight: 700; }
+@media (max-width: 860px) { .upload-grid { grid-template-columns: 1fr; } .upload-reminder { position: static; order: -1; } }

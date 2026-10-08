@@ -10,6 +10,7 @@ import {
 import { POST_PLATFORMS, reelTitle, mergedLatest, fileName, copyText, METRIC_FIELDS, sortReels } from "./_reel.js";
 import { mediaLink } from "../media.js";
 import { carouselPanel, carouselSteps, isCarousel, MANUAL_QUALITY, packagePanel, slidesOf } from "./_carousel.js";
+import { isUnchecked, reminders } from "../upload_rules.js";
 import { draftPackages, inPackage, planLaunch, launchLine, launchIds, launchSummary, packageSummary, PLATFORM_LABEL } from "../oneclick.js";
 import { tiktokPanel } from "./_tiktok.js";
 import { PRIVACY_LABELS, PROCESSING_NOTE } from "../tiktok_ux.js";
@@ -228,6 +229,9 @@ export async function launchPackage(reelId, btn) {
     h("p.small.muted", `${reelTitle(reelId)} · ${isCarousel(drafts[0]) ? `${slidesOf(drafts[0]).length} slide${slidesOf(drafts[0]).length === 1 ? "" : "s"}` : "video"}`),
     h("ul.launch-summary", launchSummary(plan, { when }).map((r) => h(`li.${r.kind}`, h("span.mark", MARK[r.kind]), r.text))),
     plan.launch.length ? "Nothing else changes. You can cancel a scheduled post in Posts until it goes out." : "Nothing can go out from here right now.",
+    isUnchecked(store.reels.get(reelId))
+      ? h("details.small.unchecked-reminder", h("summary", "Uploaded in Studio: the brand reviewers did not read it. Checked it yourself?"),
+        h("ul", reminders(store.wsId).map((r) => h("li", r)))) : null,
     h("details.small",
       h("summary", "Details"),
       h("ul.launch-details",

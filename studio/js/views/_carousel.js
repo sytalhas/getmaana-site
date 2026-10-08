@@ -11,6 +11,16 @@ import { store } from "../store.js";
 import { h, toast, pill, fmt, PLATFORM_NAMES } from "../ui.js";
 import { mediaSrc, mediaLink } from "../media.js";
 import { soundName, soundReason, soundLine, plainText } from "../sound_words.js";
+import { isUnchecked, reminders, REMINDER_INTRO } from "../upload_rules.js";
+
+/** A post uploaded in Studio: the brand reviewers did not read it, so the reminder of what to check (never a block). */
+export function uncheckedBlock(reel) {
+  if (!isUnchecked(reel)) return null;
+  return h("details.card.notice.unchecked", { open: true },
+    h("summary", { style: { cursor: "pointer", fontWeight: "800" } }, "Uploaded in Studio: check it yourself before you launch"),
+    h("p.small", REMINDER_INTRO),
+    h("ul.small", reminders(store.wsId).map((r) => h("li", r))));
+}
 
 /** Settings a person checks before posting by hand, so the app does not compress the upload (LRN-46). */
 export const MANUAL_QUALITY = {
@@ -123,6 +133,9 @@ function gateBlock(reel) {
 function sourceLine(pk) {
   const s = pk?.source;
   if (!s) return null;
+  if (s.tool === "studio upload") {
+    return h("p.small.muted", "Uploaded in Studio. The caption was written by hand; the brand reviewers did not read it.");
+  }
   if (s.item) {
     const m = pk.metadata ?? {};
     const how = m.source === "auto" ? "Caption, hashtags and alt text written by Claude Code in the brand's voice" : "Caption and hashtags written by hand";
@@ -137,6 +150,7 @@ export function packagePanel(p) {
   const c = p.options?.audio?.choice;
   return h("div.stack.carousel-panel",
     h("p.small", h("b", "Sound: "), !c || c.kind === "none" ? "none in the video." : `${c.label ?? fmt.label(c.kind)}, in the video file (nothing is added in the app).`),
+    uncheckedBlock(reel),
     gateBlock(reel),
     qualityBlock(p));
 }
@@ -155,6 +169,7 @@ export function carouselPanel(p) {
   return h("div.stack.carousel-panel",
     h("h3", `Slides (${slidesOf(p).length})`), slideStrip(p),
     audioBlock(p, store.canEdit()),
+    uncheckedBlock(reel),
     gateBlock(reel),
     qualityBlock(p));
 }

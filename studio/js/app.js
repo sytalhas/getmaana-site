@@ -24,6 +24,8 @@ const VIEWS = [
   { key: "connections", label: "Connections", module: "./views/connections.js" },
   { key: "alerts", label: "Alerts", module: "./views/alerts.js" },
   { key: "settings", label: "Settings", module: "./views/settings.js" },
+  // Add your own (LRN-52): opened from Library, not a menu item
+  { key: "upload", label: "Add your own", module: "./views/upload.js", edit: true, hidden: true },
 ];
 
 const LAST_WS_KEY = "studio.lastWorkspace";
@@ -164,7 +166,7 @@ function shell() {
       h("a.brand", { href: href("dashboard"), title: brandName }, logo(ws),
         h("span.brand-text", h("span.brand-name", ws?.name ?? "Studio"), h("span.brand-sub", "Studio"))),
       switcher()),
-    VIEWS.filter((v) => !v.edit || store.canEdit()).map((v) =>
+    VIEWS.filter((v) => !v.hidden && (!v.edit || store.canEdit())).map((v) =>
       h("a.nav-link", { href: href(v.key), "data-view": v.key }, v.label,
         v.key === "alerts" ? h("span.badge#alert-count") : null)),
     h("div.side-foot",

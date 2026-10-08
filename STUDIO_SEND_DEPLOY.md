@@ -167,3 +167,18 @@ cd "/Volumes/The Wall/Coding/maana" && git pull && supabase functions deploy stu
 Check (writes nothing): in content-creator, `./cc own studio <brand> <item>` on an item that passed its checks
 prepares the package locally; the dashboard's Send to Studio runs a `dry_run` against `/drafts` before it uploads.
 Rollback: redeploy `5357642` the same way.
+
+## 2026-10-08 (later): Add your own, uploads in Studio (LRN-52)
+
+maana 186daf8 (no migration), getmaana-site (web app). Two owner steps:
+
+1. **Let the media token write.** GitHub > Settings > Developer settings > Fine-grained tokens > the Studio media token
+   (`maana-studio-media`) > Repository permissions > Contents: **Read and write** (repositories `maana-media` and
+   `mawadda-media`). The token value does not change, so no secret needs setting. (Or make a separate token and
+   `supabase secrets set GITHUB_MEDIA_WRITE_TOKEN=... --project-ref vymyqrxvpzlhzpvsuhya`.) Until then an upload says the
+   token can only read, and nothing is uploaded.
+2. **Deploy the functions**:
+   ```
+   cd "/Volumes/The Wall/Coding/maana" && git pull && supabase functions deploy studio-api studio-worker --project-ref vymyqrxvpzlhzpvsuhya --no-verify-jwt --use-api
+   ```
+Rollback: redeploy `2aaa3d3`.

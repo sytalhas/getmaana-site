@@ -79,7 +79,9 @@ export function render(root, { params = {} } = {}) {
   const grid = h("div");
 
   clear(root,
-    h("div.view-head", h("div", h("h1", "Library"), countEl), syncBtn),
+    h("div.view-head", h("div", h("h1", "Library"), countEl),
+      h("div.row", store.canEdit() ? h("a.btn.primary", { href: href("upload"), title: "Upload a reel, a photo or a carousel you made, write its caption, and launch it from Studio" }, "Add your own") : null,
+        syncBtn ? Object.assign(syncBtn, { className: "btn" }) : null)),
     filters,
     grid);
 

@@ -240,7 +240,7 @@ const campaign_links = posts.filter((p) => p.campaign_ct).map((p) => ({ ct: p.ca
 
 const workspaces = [
   {
-    id: "maana", name: "Maana", short_name: "Maana", tagline: "Qur'anic vocabulary", site_url: "https://getmaana.com/",
+    id: "maana", name: "Maana", short_name: "Maana", media_release: "sytalhas/maana-media@library", tagline: "Qur'anic vocabulary", site_url: "https://getmaana.com/",
     ios_app_id: "6817107338", android_id: "co.qordova.maana", bundle_id: "co.qordova.maana", sort: 1,
     palette: { "--paper": "#F8F3EA", "--paper-2": "#F1EADD", "--card": "#FFFDF8", "--navy": "#0E1F3D", "--ink-2": "#44506A",
       "--ink-3": "#6B7488", "--coral": "#E08864", "--coral-soft": "#F3A37E", "--coral-ink": "#A5502D", "--green": "#286F4D",
@@ -273,7 +273,7 @@ const workspaces = [
     media_manifest_url: "https://github.com/sytalhas/maana-media/releases/download/library/manifest.json",
   },
   {
-    id: "mawadda", name: "Mawadda", short_name: "Mawadda", tagline: "Muslim couples", site_url: "https://mawadda.app/",
+    id: "mawadda", name: "Mawadda", media_release: "sytalhas/mawadda-media@library", short_name: "Mawadda", tagline: "Muslim couples", site_url: "https://mawadda.app/",
     ios_app_id: "6756983545", android_id: "com.mawadda.android", bundle_id: "com.mawadda.mawadda", sort: 2,
     palette: { "--paper": "#F4EEE1", "--paper-2": "#EBE2D0", "--card": "#FFFBF3", "--navy": "#2C211B", "--ink-2": "#5A4A40",
       "--ink-3": "#7D6D62", "--coral": "#B08A3E", "--coral-soft": "#D9BE84", "--coral-ink": "#7A5C1F", "--green": "#2F6B4A",
@@ -508,8 +508,8 @@ function mockPreflight(p) {
     if (!allowed.includes(choice.kind)) errors.push(`Audio: ${choice.label}: ${choice.kind} is not allowed by this brand's audio policy (allowed: ${allowed.join(", ")})`);
     if (choice.kind !== "none" && choice.contains_instruments !== false) errors.push(`Audio: ${choice.label}: not confirmed instrument-free`);
     if (choice.kind === "recitation" && !choice.recitation?.fit_review?.pass) errors.push("Audio: recitation needs a passing fit review from the islamic-correctness gate");
-    if (choice.kind !== "none" && p.platform === "instagram" && p.method !== "manual") errors.push("Audio: the Instagram API cannot add a sound to a carousel. Use the manual checklist (post it in the app) or choose no added sound.");
-    if (choice.kind !== "none" && p.platform === "facebook" && p.method !== "manual") errors.push("Audio: the Facebook API cannot add a sound to a photo post. Use the manual checklist (post it in the Facebook app) or choose no added sound.");
+    if (choice.kind !== "none" && choice.delivery !== "file" && p.platform === "instagram" && p.method !== "manual") errors.push("Audio: the Instagram API cannot add a sound to a carousel. Use the manual checklist (post it in the app) or choose no added sound.");
+    if (choice.kind !== "none" && choice.delivery !== "file" && p.platform === "facebook" && p.method !== "manual") errors.push("Audio: the Facebook API cannot add a sound to a photo post. Use the manual checklist (post it in the Facebook app) or choose no added sound.");
   }
   if (p.platform === "tiktok" && p.format === "carousel" && p.method !== "manual" && !TT_PHOTO) errors.push("TikTok pulls photos only from a verified URL prefix, which is not set up yet. Use the manual checklist.");
   if (p.platform === "tiktok" && p.method === "api" && TT === "audited" && !(p.options?.tiktok?.privacy_level && p.options?.tiktok?.declaration)) errors.push("TikTok direct post: choose who can see it (TikTok allows no default privacy).");
@@ -602,9 +602,39 @@ export async function api(path, body = {}, method = "POST") {
       const m = /\/([a-z]+-g-[a-z0-9-]+-(4x5|9x16)-\d{2}\.jpg)$/.exec(u);
       return m ? `${GEN_LOCAL}${m[2]}/${m[1]}` : null;
     };
-    const links = Object.fromEntries((body.urls ?? []).map((u) => [u, gen(u) ??
+    const links = Object.fromEntries((body.urls ?? []).map((u) => [u, window.__mockUploads?.[u] ?? gen(u) ??
       (PRIVATE_MEDIA && u.startsWith(RELEASE_MEDIA) ? `${LOCAL_MEDIA}${u.slice(RELEASE_MEDIA.length)}?sig=mock` : u)]));
     return { links, expires_in_s: 300 };
+  }
+  if (path === "drafts") {   // Studio uploads (LRN-52): the reel, its files and one draft per platform, as studio-api stores them
+    const pk = body.package;
+    const ws = apiWorkspace;
+    const uploaded = pk.package_id.startsWith("u-");
+    const reel = { workspace_id: ws, id: pk.package_id, title: pk.title, batch: uploaded ? "uploaded" : "own", status: "ready",
+      caption_organic: pk.posts[0]?.caption ?? null, captions: {}, levers: {}, notes: "Uploaded in Studio.",
+      flags: uploaded ? [{ code: "unchecked_upload", message: "Uploaded in Studio: not checked by the brand reviewers (app facts, Qur'an and hadith sources, Islamic correctness, voice). Check the reminders before you launch." }] : [],
+      poster_url: pk.poster?.url ?? Object.values(pk.sets ?? {})[0]?.items[0]?.url ?? null, length_s: pk.video?.duration_s ?? null,
+      package: { schema: pk.schema, format: pk.format, metadata: pk.metadata, checked: !uploaded, source: pk.source, gate_report: null },
+      created_at: iso(Date.now()), updated_at: iso(Date.now()) };
+    reels.push(reel);
+    emit("reels", "INSERT", structuredClone(reel));
+    const made = {};
+    const add = (a) => { const row = { id: uuid(), workspace_id: ws, reel_id: pk.package_id, created_at: iso(Date.now()), ...a }; assets.push(row); emit("assets", "INSERT", structuredClone(row)); return row; };
+    if (pk.video) made.video = add({ kind: "video", variant: "main", url: pk.video.url, width: pk.video.width, height: pk.video.height, duration_s: pk.video.duration_s, audio: pk.video.sound.kind === "none" ? "none" : "voice", manual_audio: false });
+    for (const [k, set] of Object.entries(pk.sets ?? {})) made[k] = add({ kind: "image_set", variant: k, url: set.items[0].url, width: set.width, height: set.height, items: set.items });
+    const out = [];
+    for (const gp of pk.posts) {
+      const row = { id: uuid(), workspace_id: ws, reel_id: pk.package_id, asset_id: (pk.video ? made.video : made[gp.set]).id, connection_id: null,
+        platform: gp.platform, post_type: "organic", method: gp.method, status: "draft", format: pk.video ? "video" : "carousel",
+        caption: gp.caption, first_comment: null, cover_ms: gp.cover_ms ?? null, scheduled_at: null, published_at: null,
+        options: { source: uploaded ? "studio_upload" : "own", audio: pk.video ? { choice: pk.video.sound } : gp.audio, ...(gp.set ? { set: gp.set } : {}), ...(gp.title ? { title: gp.title } : {}) },
+        preflight: null, campaign_ct: null, created_at: iso(Date.now()), updated_at: iso(Date.now()) };
+      posts.push(row);
+      emit("posts", "INSERT", structuredClone(row));
+      row.preflight = mockPreflight(row);
+      out.push({ id: row.id, platform: row.platform, method: row.method, preflight: row.preflight });
+    }
+    return { ok: true, reel_id: pk.package_id, posts: out };
   }
   if (path === "sync") return { queued: body.post_id ? 1 : posts.filter((p) => p.status === "live" && p.workspace_id === apiWorkspace).length };
   if (path.startsWith("health/")) return { results: conns.filter((c) => c.workspace_id === apiWorkspace && c.platform === path.split("/")[1]).map((c) => ({ id: c.id, status: c.status, last_error: c.last_error })) };
@@ -629,6 +659,16 @@ export async function api(path, body = {}, method = "POST") {
     return { ok: true, filled: campaign_links.length };
   }
   return { ok: true };
+}
+
+/** Studio uploads in the mock: keep the file in the page and hand back a release-shaped URL (media-links maps it). */
+export async function uploadFile({ upload, slot }, blob, onProgress) {
+  const ws = apiWorkspace;
+  const name = slot === "video" ? `${ws}-${upload}.mp4` : slot === "poster" ? `${ws}-${upload}-poster.jpg` : `${ws}-${upload}-${slot}.jpg`;
+  for (const f of [0.3, 0.7, 1]) { await sleep(120); onProgress?.(f); }
+  const url = `https://github.com/sytalhas/${ws}-media/releases/download/library/${name}`;
+  (window.__mockUploads ??= {})[url] = URL.createObjectURL(blob);
+  return { ok: true, name, url, bytes: blob.size, sha256: "0".repeat(64) };
 }
 
 export const supa = {
