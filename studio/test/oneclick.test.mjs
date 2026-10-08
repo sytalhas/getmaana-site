@@ -57,3 +57,23 @@ test("launch lines say what, where, the sound and when", () => {
     "Instagram: carousel of 7 slides published with the API, no added sound, caption 5 characters, account @maana.app, now.");
   assert.match(launchLine(D("u", "tiktok", "inbox_draft"), { slides: 7, when: "Oct 8, 9:00 AM" }), /TikTok inbox as a draft .* at Oct 8, 9:00 AM\.$/);
 });
+
+// ---------------------------------------------------------------- own content (content-creator, 2026-10-08)
+import { draftPackages, inPackage } from "../js/oneclick.js";
+
+test("own content: a video draft whose reel carries a package joins the launch list; library videos do not", () => {
+  const reels = new Map([["o-1", { id: "o-1", package: { schema: "studio-draft/1", format: "video" } }], ["r5", { id: "r5", package: {} }]]);
+  const V = (id, platform, method, reel = "o-1") => D(id, platform, method, { reel_id: reel, format: "video", options: { audio: { choice: { id: "own-voice", label: "Our own voice", kind: "voice" } }, title: "When your spouse says fine" } });
+  const posts = [V("y", "youtube", "api"), V("t", "tiktok", "inbox_draft"), V("i", "instagram", "api"), V("lib", "instagram", "api", "r5")];
+  const pk = draftPackages(posts, reels);
+  assert.deepEqual([...pk.keys()], ["o-1"]);
+  assert.deepEqual(pk.get("o-1").map((p) => p.id), ["i", "t", "y"]);
+  assert.equal(inPackage(posts[3], reels), false);
+  assert.equal(inPackage(D("c", "instagram", "api")), true);
+  const plan = planLaunch(pk.get("o-1"), { i: ok, t: ok, y: ok });
+  assert.deepEqual(launchIds(plan), ["i", "t", "y"]);
+  assert.match(launchLine(posts[0]), /the video published with the API as a Short titled "When your spouse says fine"/);
+  assert.match(launchLine(posts[1]), /the video sent to the TikTok inbox/);
+  assert.match(launchLine(posts[2]), /its own sound \(Our own voice\)/);
+  assert.match(launchLine(D("one", "instagram", "api"), { slides: 1 }), /one photo published with the API/);
+});

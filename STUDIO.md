@@ -59,6 +59,25 @@ the commercial content disclosure, the consent declaration and the processing no
 `posts.options.tiktok`. Before the audit every direct post is private (Only me); after `TIKTOK_AUDITED` the server
 refuses a direct post without these choices. Audit package: `docs/tiktok-audit/`.
 
+### Own content from content-creator (LRN-51)
+
+The team's own posts (a carousel or one photo designed elsewhere, or a reel video) come in through the same
+`POST /drafts` route as generator carousels, from content-creator's Own content page (`engine/writers-room/own/own.py`):
+optional captions, hashtags, YouTube titles and alt text written by Claude Code in the brand's voice, every brand gate
+(the correctness gates also read the media), then the package. Package ids start `o-`; `reels.batch` is `own`.
+
+- **Carousels and photos**: `format: "carousel"`, image sets as above. One photo is a set of one: Instagram publishes it
+  as a single image post (same resumable container, status and publish steps); Facebook and TikTok as one photo.
+- **Reels**: `format: "video"` (`_shared/drafts.ts planVideo`): one MP4 and a poster JPEG in the workspace's release
+  (`<ws>-o-<item>.mp4`, already at the upload preset), one DRAFT per platform including YouTube (a title is required;
+  YouTube stays private until Google's audit), TikTok to the inbox. The sound is the one in the file
+  (`video.sound`, delivery `file`), checked against the brand audio policy on the way in and in pre-flight; a
+  recitation is refused here (recited cuts come through the library import). The reel gets a `video` asset, so Launch
+  treats it like any library reel (trial reels, paid, a schedule) and Library, levers, experiments and metrics work.
+- **Posts**: "Ready to launch" (was "Carousels ready to launch") lists every package with drafts, videos included
+  (`oneclick.js draftPackages`); a video draft's Details shows its sound, the checks before sending and where it came
+  from (`_carousel.js packagePanel`).
+
 ### Upload quality
 
 Studio sends the original file to every platform (resumable byte uploads for Instagram, Facebook and YouTube,

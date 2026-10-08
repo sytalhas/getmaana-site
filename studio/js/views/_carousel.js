@@ -1,4 +1,5 @@
-// Carousel drafts from the content-creator post generator ("Send to Studio"): the slides, the sound (the chosen
+// Drafts sent from content-creator ("Send to Studio": post generator carousels, and own content: a carousel, one photo
+// or a reel video). For a carousel: the slides, the sound (the chosen
 // one, why, its licence, the brand policy check, the step to do in the app, the alternatives), the gate report,
 // credits and the upload-quality readback. Shown inside a post's Details. Editing the sound changes the draft's
 // options, which clears its pre-flight (guard_posts), so it is checked again before anyone can Launch it.
@@ -115,7 +116,29 @@ function gateBlock(reel) {
     g.design_tips?.length ? h("p.small.muted", `Design tips (advice): ${g.design_tips.join(", ")}`) : null,
     reel.package.credits?.length ? h("p.small.muted", `Credits: ${reel.package.credits.map((c) => c.title ?? c.id).join("; ")}`) : null,
     reel.package.skipped?.length ? h("p.small.muted", reel.package.skipped.map((s) => `${s.platform}: ${s.why}`).join(" ")) : null,
-    reel.package.source ? h("p.small.muted", `From the post generator: run ${reel.package.source.run}, ${reel.package.source.variant}.`) : null);
+    sourceLine(reel.package));
+}
+
+/** Where a package came from, in plain words. */
+function sourceLine(pk) {
+  const s = pk?.source;
+  if (!s) return null;
+  if (s.item) {
+    const m = pk.metadata ?? {};
+    const how = m.source === "auto" ? "Caption, hashtags and alt text written by Claude Code in the brand's voice" : "Caption and hashtags written by hand";
+    return h("p.small.muted", `Your own content from content-creator (${s.item}). ${how}, then checked by the brand's gates.`);
+  }
+  return h("p.small.muted", `From the post generator: run ${s.run}, ${s.variant}.`);
+}
+
+/** A video draft sent from content-creator (own content): the sound in the file, the checks, the quality readback. */
+export function packagePanel(p) {
+  const reel = store.reels.get(p.reel_id);
+  const c = p.options?.audio?.choice;
+  return h("div.stack.carousel-panel",
+    h("p.small", h("b", "Sound: "), !c || c.kind === "none" ? "none in the video." : `${c.label ?? fmt.label(c.kind)}, in the video file (nothing is added in the app).`),
+    gateBlock(reel),
+    qualityBlock(p));
 }
 
 function qualityBlock(p) {

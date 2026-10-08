@@ -1,5 +1,6 @@
-// One-click launch for a carousel package (the drafts that share one reel from the post generator's Send to
-// Studio): which drafts go out with the API, which stay manual, which pre-flight blocks. Pure (no DOM, no network)
+// One-click launch for a package (the drafts that share one reel, sent from content-creator: a post generator
+// carousel, or own content such as a carousel, a photo or a reel video): which drafts go out with the API, which stay
+// manual, which pre-flight blocks. Pure (no DOM, no network)
 // so the rules are unit-tested (test/oneclick.test.mjs); views/posts.js runs pre-flight, shows the plan in one
 // confirmation and calls studio.confirm_posts once with every id in plan.launch.
 //
@@ -9,11 +10,19 @@
 
 export const PLATFORM_LABEL = { instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", youtube: "YouTube Shorts", meta_ads: "Meta Ads" };
 
-/** Carousel drafts grouped by reel (one package per reel), only reels with at least one carousel draft. */
-export function carouselPackages(posts) {
+/** True when a post belongs to a package sent from content-creator: every carousel draft, and a video draft whose reel
+ *  carries a package (own content). Library reels' videos are launched from Launch instead. */
+export function inPackage(p, reels = null) {
+  if (p?.format === "carousel") return true;
+  const r = reels?.get?.(p?.reel_id);
+  return !!(r?.package && r.package.schema);
+}
+
+/** Package drafts grouped by reel (one package per reel), only reels with at least one draft in a package. */
+export function draftPackages(posts, reels = null) {
   const out = new Map();
   for (const p of posts) {
-    if (p?.format !== "carousel" || p.status !== "draft") continue;
+    if (!inPackage(p, reels) || p.status !== "draft") continue;
     if (!out.has(p.reel_id)) out.set(p.reel_id, []);
     out.get(p.reel_id).push(p);
   }
@@ -21,7 +30,10 @@ export function carouselPackages(posts) {
   return out;
 }
 
-const ORDER = ["instagram", "facebook", "tiktok"];
+/** The carousel-only view kept for older callers. */
+export const carouselPackages = (posts) => draftPackages(posts);
+
+const ORDER = ["instagram", "facebook", "tiktok", "youtube"];
 function order(p) {
   const i = ORDER.indexOf(p);
   return i < 0 ? 99 : i;
@@ -71,11 +83,13 @@ export function planLaunch(drafts, results = {}) {
 export function launchLine(p, { slides = 0, when = null, account = null } = {}) {
   const name = PLATFORM_LABEL[p.platform] ?? p.platform;
   const sound = p.options?.audio?.choice;
+  const video = p.format === "video";
   const what = p.method === "inbox_draft"
-    ? `${slides} photos sent to the TikTok inbox as a draft (you tap Post in the app)`
-    : `carousel of ${slides} slides published with the API`;
+    ? `${video ? "the video" : `${slides} photos`} sent to the TikTok inbox as a draft (you tap Post in the app)`
+    : video ? `the video published with the API${p.platform === "youtube" ? ` as a Short titled "${p.options?.title ?? ""}"` : ""}`
+      : slides === 1 ? "one photo published with the API" : `carousel of ${slides} slides published with the API`;
   const parts = [what];
-  parts.push(sound && sound.kind !== "none" ? `sound "${sound.label}"` : "no added sound");
+  parts.push(sound && sound.kind !== "none" ? (video ? `its own sound (${sound.label})` : `sound "${sound.label}"`) : video ? "the video's own sound" : "no added sound");
   parts.push(`caption ${(p.caption ?? "").length} characters`);
   if (account) parts.push(`account ${account}`);
   parts.push(when ? `at ${when}` : "now");

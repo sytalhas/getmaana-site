@@ -9,8 +9,8 @@ import {
 } from "../ui.js";
 import { POST_PLATFORMS, reelTitle, mergedLatest, fileName, copyText, METRIC_FIELDS, sortReels } from "./_reel.js";
 import { mediaLink } from "../media.js";
-import { carouselPanel, carouselSteps, isCarousel, MANUAL_QUALITY, slidesOf } from "./_carousel.js";
-import { carouselPackages, planLaunch, launchLine, launchIds, launchSummary, packageSummary, PLATFORM_LABEL } from "../oneclick.js";
+import { carouselPanel, carouselSteps, isCarousel, MANUAL_QUALITY, packagePanel, slidesOf } from "./_carousel.js";
+import { draftPackages, inPackage, planLaunch, launchLine, launchIds, launchSummary, packageSummary, PLATFORM_LABEL } from "../oneclick.js";
 import { tiktokPanel } from "./_tiktok.js";
 import { PRIVACY_LABELS, PROCESSING_NOTE } from "../tiktok_ux.js";
 
@@ -56,13 +56,14 @@ export function render(root, { params = {} } = {}) {
     packagesBox,
     tableBox);
 
-  // Carousel packages from the post generator: one "Check and launch all" per package.
+  // Packages sent from content-creator (post generator carousels, own carousels, photos and reels): one "Check and
+  // launch all" per package.
   function renderPackages() {
-    const pk = carouselPackages([...store.posts.values()]);
+    const pk = draftPackages([...store.posts.values()], store.reels);
     if (!pk.size || !canEdit) return clear(packagesBox);
     clear(packagesBox, h("section.card.stack.packages", { style: { marginBottom: "16px" } },
-      h("h3", { style: { margin: "0" } }, `Carousels ready to launch (${pk.size})`),
-      h("p.small.muted", { style: { margin: "0" } }, "Each carousel's drafts launch together: Studio runs pre-flight on every draft, shows you one list of what publishes where, and launches only after you confirm. Drafts with a sound you add by hand stay manual."),
+      h("h3", { style: { margin: "0" } }, `Ready to launch (${pk.size})`),
+      h("p.small.muted", { style: { margin: "0" } }, "Each post's drafts launch together: Studio runs pre-flight on every draft, shows you one list of what publishes where, and launches only after you confirm. Drafts with a sound you add by hand stay manual."),
       [...pk.entries()].map(([reelId, drafts]) => h("div.row.between.package-row", { style: { gap: "10px", borderTop: "1px solid var(--line)", paddingTop: "10px" } },
         h("div", { style: { minWidth: "0", flex: "1 1 260px" } },
           h("strong", reelTitle(reelId)),
@@ -207,8 +208,8 @@ function connLabel(p) {
 }
 
 export async function launchPackage(reelId, btn) {
-  const drafts = [...store.posts.values()].filter((p) => p.reel_id === reelId && p.format === "carousel" && p.status === "draft");
-  if (!drafts.length) return toast("This carousel has no drafts left to launch.", "warn");
+  const drafts = [...store.posts.values()].filter((p) => p.reel_id === reelId && inPackage(p, store.reels) && p.status === "draft");
+  if (!drafts.length) return toast("This post has no drafts left to launch.", "warn");
   if (btn) { btn.disabled = true; btn.textContent = "Checking"; }
   const results = {};
   try {
@@ -224,7 +225,7 @@ export async function launchPackage(reelId, btn) {
   // Plain summary first, one line per platform; the full lines (slides, sound, caption, account) behind Details.
   const MARK = { launch: "✓", manual: "•", own: "•", blocked: "✗" };
   const lines = [
-    h("p.small.muted", `${reelTitle(reelId)} · ${slidesOf(drafts[0]).length} slides`),
+    h("p.small.muted", `${reelTitle(reelId)} · ${isCarousel(drafts[0]) ? `${slidesOf(drafts[0]).length} slide${slidesOf(drafts[0]).length === 1 ? "" : "s"}` : "video"}`),
     h("ul.launch-summary", launchSummary(plan, { when }).map((r) => h(`li.${r.kind}`, h("span.mark", MARK[r.kind]), r.text))),
     plan.launch.length ? "Nothing else changes. You can cancel a scheduled post in Posts until it goes out." : "Nothing can go out from here right now.",
     h("details.small",
@@ -239,7 +240,7 @@ export async function launchPackage(reelId, btn) {
     await confirmAction(`Launch ${reelTitle(reelId)}?`, lines, "OK");
     return;
   }
-  const ok = await confirmAction(`Launch ${plan.launch.length} post${plan.launch.length === 1 ? "" : "s"} of this carousel?`, lines,
+  const ok = await confirmAction(`Launch ${plan.launch.length} post${plan.launch.length === 1 ? "" : "s"} of ${isCarousel(drafts[0]) ? "this carousel" : "this video"}?`, lines,
     `Launch ${plan.launch.length}`);
   if (!ok) return;
   const ids = launchIds(plan);
@@ -284,7 +285,7 @@ function openDetail(id) {
         kv("Next sync", fmt.dateTime(p.next_sync_at))),
       p.caption ? h("details", h("summary", { style: { cursor: "pointer", fontWeight: "700" } }, "Caption"),
         h("pre", p.caption), h("button.btn.small.ghost", { onclick: () => copyText(p.caption, "Caption") }, "Copy caption")) : null,
-      isCarousel(p) ? carouselPanel(p) : null,
+      isCarousel(p) ? carouselPanel(p) : inPackage(p, store.reels) ? packagePanel(p) : null,
       h("h3", "Pre-flight"),
       pf ? h("div.stack", { style: { gap: "4px" } },
         h("div.row", pf.ok ? pill("passed", "good") : pill("blocked", "bad"), h("span.small.muted", `checked ${fmt.ago(pf.checked_at)}`)),
@@ -292,8 +293,8 @@ function openDetail(id) {
         pf.warnings?.length ? h("ul.preflight-list.warnings", pf.warnings.map((w) => h("li", w))) : null)
         : h("p.muted", "Not checked yet."),
       canEdit && p.status === "draft" ? draftActions(p, cache) : null,
-      canEdit && p.status === "draft" && isCarousel(p) && [...store.posts.values()].filter((x) => x.reel_id === p.reel_id && x.format === "carousel" && x.status === "draft").length > 1
-        ? h("div.row.end", h("span.small.muted", "Or launch every draft of this carousel together:"),
+      canEdit && p.status === "draft" && inPackage(p, store.reels) && [...store.posts.values()].filter((x) => x.reel_id === p.reel_id && inPackage(x, store.reels) && x.status === "draft").length > 1
+        ? h("div.row.end", h("span.small.muted", `Or launch every draft of this ${isCarousel(p) ? "carousel" : "video"} together:`),
           h("button.btn.ghost", { onclick: (e) => launchPackage(p.reel_id, e.currentTarget) }, "Check and launch all")) : null);
 
     const jobs = [...store.jobs.values()].filter((j) => j.post_id === id);
