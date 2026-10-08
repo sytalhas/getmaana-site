@@ -153,3 +153,17 @@ Redeploy the functions that are live today (maana `84d260f`, the tip of `learn-r
 Revert the getmaana-site merge on `main`. Then, only if you also want the schema back, run
 `supabase/migrations/ROLLBACK_20261006_studio_photo_posts.sql` (it refuses while carousel rows exist) and delete
 its row from `supabase_migrations.schema_migrations`.
+
+## 2026-10-08: own content from content-creator (LRN-51)
+
+maana `learn-redesign-mockups` 2aaa3d3 (no migration). The web app is already published (getmaana-site 134f806).
+Until the functions are redeployed, own-content sends are refused by the old `/drafts` (`package_id must look like
+g-...`); nothing else changes. Deploy:
+
+```
+cd "/Volumes/The Wall/Coding/maana" && git pull && supabase functions deploy studio-api studio-worker --project-ref vymyqrxvpzlhzpvsuhya --no-verify-jwt --use-api
+```
+
+Check (writes nothing): in content-creator, `./cc own studio <brand> <item>` on an item that passed its checks
+prepares the package locally; the dashboard's Send to Studio runs a `dry_run` against `/drafts` before it uploads.
+Rollback: redeploy `5357642` the same way.
