@@ -30,7 +30,8 @@ export function render(root) {
     onchange: () => pick(input.files) });
   const drop = h("label.upload-drop", input,
     h("b", "Choose files, or drop them here"),
-    h("span.small.muted", "One video (MP4, up to 95 MB), or 1 to 10 images in order: one photo or a carousel."));
+    h("span.small.muted", "One video (MP4, up to 95 MB), or 1 to 10 images in order: one photo or a carousel."),
+    h("span.small.muted", "Each file must upload within about 2 minutes, so on a slow connection keep reels smaller (Studio tells you if one is too big)."));
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files); });

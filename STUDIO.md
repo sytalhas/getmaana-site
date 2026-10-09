@@ -90,6 +90,10 @@ in each draft's Details and in Check and launch all; it never blocks. Studio's o
   (`_shared/upload.ts`) takes each file as the request body and puts it in `workspaces.media_release` with
   `GITHUB_MEDIA_WRITE_TOKEN`, else `GITHUB_MEDIA_TOKEN`; that token needs Contents: Read and write on the media repos.
   Names are built on the server (`<ws>-u-<id>-4x5-01.jpg`, `<ws>-u-<id>.mp4`, `-poster.jpg`); bytes are sniffed.
+- **Time, not size, is the real limit.** An Edge Function request on the free plan stops at about 150 s, and the file
+  passes through it, so `js/supa.js uploadFile` measures the speed and stops early (about 6 s in) with a plain message
+  when a file cannot finish in about 130 s. Measured 2026-10-08 from a 1.5 Mbps connection: about 0.2 MB/s, so reels up
+  to about 25 MB there; fibre takes the full 95 MB. Bigger files go through content-creator's Own content (no limit).
 - **Images** are drawn in the browser at each platform's size (JPEG 0.95, framed in the edge colour, never cropped; a
   JPEG already at the exact size goes as it is). **Reels** go as they are; the browser makes the poster.
 - **Drafts**: the page sends a `studio-draft/1` package with a `u-` id to `/drafts`: `reels.batch` `uploaded`,
