@@ -23,6 +23,10 @@ const SIZES = { desktop: { width: 1440, height: 900 }, phone: { width: 390, heig
 const CASES = [
   ...["maana", "mawadda"].flatMap((ws) => VIEWS.map((v) => ({ name: `${ws}-${v}`, q: "role=owner", hash: `#/w/${ws}/${v}` }))),
   ...["dashboard", "library", "calendar", "connections", "settings", "posts", "launch"].map((v) => ({ name: `mawadda-empty-${v}`, q: "role=owner&mawadda=empty", hash: `#/w/mawadda/${v}` })),
+  // Word reports belong to Maana only (Mawadda's own page for them is a pointer to Maana, so it is not in the loop above)
+  { name: "maana-reports", q: "role=owner", hash: "#/w/maana/reports" },
+  { name: "maana-reports-card", q: "role=owner", hash: "#/w/maana/reports?card=abd" },
+  { name: "maana-reports-not-set-up", q: "role=owner&reports=missing", hash: "#/w/maana/reports" },
   { name: "mawadda-only-dashboard", q: "member=mawadda&role=owner", hash: "#/w/mawadda/dashboard" },
   { name: "mawadda-only-forbidden-maana", q: "member=mawadda&role=editor", hash: "#/w/maana/library" },
   { name: "legacy-hash", q: "role=viewer", hash: "#/calendar" },

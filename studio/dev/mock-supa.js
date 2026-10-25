@@ -10,6 +10,8 @@
 //   mawadda=empty              a brand-new Mawadda workspace (no reels, posts, connections, settings)
 //   media=private              library URLs look like private GitHub release URLs; POST /media-links
 //                              "signs" them back to the local files (otherwise it echoes each URL)
+//   reports=missing|denied|empty   the Maana word reports (Reports view): missing = the database functions are not applied
+//                              yet (PostgREST's "could not find the function" answer), denied = "Not allowed", empty = none
 
 const qs = new URLSearchParams(location.search);
 const ROLE = qs.get("role") ?? "owner";
@@ -671,10 +673,125 @@ export async function uploadFile({ upload, slot }, blob, onProgress) {
   return { ok: true, name, url, bytes: blob.size, sha256: "0".repeat(64) };
 }
 
+// ---------------------------------------------------------------------------
+// Word reports (Maana): studio.word_report_cards / word_reports / set_word_report_status / word_report_counts on an
+// in-memory set of reports, following the rules of 20261024170000_studio_word_reports.sql (no reporter identity is
+// returned; the status function keeps content_version; declining needs a note).
+// ---------------------------------------------------------------------------
+
+const REPORTS_MODE = qs.get("reports") ?? "";
+const WR_OPEN = ["new", "triaged", "accepted"];
+const WR_ALL = [...WR_OPEN, "declined", "shipped"];
+const WR_CARDS = {
+  abd: { card_id: "abd", card_rank: 73, card_lemma_ar: "عَبْد", card_lemma_translit: "ʿabd", card_senses: "servant · worshipper", card_verse_key: "1:5", card_highlight_ar: "نَعْبُدُ", card_highlight_gloss: "we worship" },
+  rabb: { card_id: "rabb", card_rank: 12, card_lemma_ar: "رَبّ", card_lemma_translit: "rabb", card_senses: "lord · master", card_verse_key: "1:2", card_highlight_ar: "رَبِّ", card_highlight_gloss: "Lord of" },
+  salah: { card_id: "salah", card_rank: 31, card_lemma_ar: "صَلَاة", card_lemma_translit: "ṣalāh", card_senses: "prayer", card_verse_key: "2:3", card_highlight_ar: "الصَّلَاةَ", card_highlight_gloss: "the prayer" },
+  kitab: { card_id: "kitab", card_rank: 18, card_lemma_ar: "كِتَاب", card_lemma_translit: "kitāb", card_senses: "book · scripture · decree", card_verse_key: "2:2", card_highlight_ar: "الْكِتَابُ", card_highlight_gloss: "the Book" },
+  nur: { card_id: null, card_rank: 212, card_lemma_ar: "نُور", card_lemma_translit: "nūr", card_senses: "light", card_verse_key: "24:35", card_highlight_ar: "نُورٌ", card_highlight_gloss: "light" },
+  yawm: { card_id: "yawm", card_rank: 9, card_lemma_ar: "يَوْم", card_lemma_translit: "yawm", card_senses: "day · Day (of Judgment)", card_verse_key: "1:4", card_highlight_ar: "يَوْمِ", card_highlight_gloss: "Day of" },
+};
+let wrSeq = 0;
+const WR = (card, ago, x) => ({
+  id: `00000000-0000-4000-8000-${String(++wrSeq).padStart(12, "0")}`, ...WR_CARDS[card], created_at: iso(now - ago), category: "wrong-meaning",
+  suggested_fix: null, notes: null, status: "new", resolution_note: null, notify: false, platform: "ios", app_version: "1.0.2",
+  content_version: null, resolved_at: null, ...x,
+});
+const WORD_REPORTS = REPORTS_MODE === "empty" ? [] : [
+  WR("abd", 3 * H, { suggested_fix: "servant", notes: "“Slave” reads harshly here. “Servant” is how this verse is usually rendered.", notify: true }),
+  WR("abd", 1 * D, { suggested_fix: "Servant", platform: "android" }),
+  WR("abd", 2 * D, { suggested_fix: "servant ", notes: "يعني خادم", app_version: "1.0.1" }),
+  WR("abd", 3 * D, { suggested_fix: "worshipper", status: "triaged" }),
+  WR("abd", 4 * D, { category: "wrong-example", notes: "The highlighted word in this verse is not the word on the card.", status: "accepted", platform: "android", app_version: "1.0.1",
+    card_senses: "slave · servant", card_verse_key: "2:21", card_highlight_ar: "اعْبُدُوا", card_highlight_gloss: "worship" }),
+  WR("abd", 9 * D, { suggested_fix: "slave", status: "declined", resolution_note: "Kept as is: the verse uses the word for ownership.", resolved_at: iso(now - 8 * D) }),
+  WR("abd", 12 * D, { category: "audio-problem", notes: "The audio cuts off before the end of the word.", status: "shipped", resolution_note: "Fixed in version 1.0.1", content_version: 3, resolved_at: iso(now - 10 * D), notify: true, app_version: "1.0.0" }),
+  WR("rabb", 5 * H, { category: "wrong-example", suggested_fix: "Use 1:2", notes: "This is the verse from Al-Fatihah, but the card shows another one." }),
+  WR("rabb", 20 * H, { category: "audio-problem", notes: "No sound on my phone for this card.", platform: "android" }),
+  WR("rabb", 2 * D, { suggested_fix: "Lord", status: "triaged", notify: true }),
+  WR("salah", 1 * D, { category: "arabic-issue", suggested_fix: "صَلَاة", notes: "The alif is missing the small mark." }),
+  WR("salah", 6 * D, { category: "arabic-issue", notes: "Spelling looks different from my mushaf. <b>not bold</b> <img src=x onerror=alert(1)> " + "It keeps going to check that long notes wrap on a phone without pushing the page sideways. ".repeat(2), platform: "android" }),
+  WR("kitab", 20 * D, { suggested_fix: "scripture", status: "shipped", resolution_note: "Fixed in version 1.0.3", content_version: 7, resolved_at: iso(now - 18 * D) }),
+  WR("kitab", 15 * D, { category: "other", notes: "Please add more examples.", status: "declined", resolution_note: "Thank you. We keep one example per word on purpose.", resolved_at: iso(now - 14 * D) }),
+  WR("nur", 8 * D, { suggested_fix: "light", app_version: null }),
+  WR("nur", 7 * D, { category: "root-family", notes: "The root family list is missing a word.", app_version: null }),
+  ...[3, 10, 26, 40].map((h, i) => WR("yawm", h * H, { category: i % 2 ? "wrong-example" : "wrong-meaning", suggested_fix: i === 0 ? "Day" : null, status: i === 3 ? "accepted" : "new", platform: i % 2 ? "android" : "ios" })),
+];
+const wrKey = (r) => r.card_id ?? `rank:${r.card_rank}`;
+// Which reports came from the same learner (the browser never sees this, as with the real functions).
+const WR_WHO = new Map([[WORD_REPORTS[0]?.id, "u1"], [WORD_REPORTS[1]?.id, "u1"]]);
+const wrGone = (name) => ({ data: null, error: { code: "PGRST202", details: `Searched for the function studio.${name} with parameter p_status or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.`, hint: null,
+  message: `Could not find the function studio.${name} in the schema cache` } });
+const wrBad = (message, code = "22023") => ({ data: null, error: { code, message, details: null, hint: null } });
+
+function wrRpc(name, a = {}) {
+  if (REPORTS_MODE === "missing") return wrGone(name);
+  if (REPORTS_MODE === "denied" || !["owner", "editor"].includes(ROLE)) return wrBad("Not allowed: word reports are for owners and editors of the Maana workspace.", "42501");
+  if (name === "word_report_counts") {
+    const n = (s) => WORD_REPORTS.filter((r) => r.status === s).length;
+    return { data: [{ new_count: n("new"), triaged_count: n("triaged"), accepted_count: n("accepted"), declined_count: n("declined"), shipped_count: n("shipped"),
+      open_count: WORD_REPORTS.filter((r) => WR_OPEN.includes(r.status)).length, total: WORD_REPORTS.length,
+      open_cards: new Set(WORD_REPORTS.filter((r) => WR_OPEN.includes(r.status)).map(wrKey)).size }], error: null };
+  }
+  if (name === "word_report_cards") {
+    const f = String(a.p_status ?? "open").trim().toLowerCase();
+    const statuses = f === "open" ? WR_OPEN : f === "all" ? WR_ALL : WR_ALL.includes(f) ? [f] : null;
+    if (!statuses) return wrBad(`Unknown filter "${a.p_status}": use open, all, new, triaged, accepted, declined or shipped.`);
+    const keys = [...new Set(WORD_REPORTS.filter((r) => statuses.includes(r.status)).map(wrKey))];
+    const rows = keys.map((k) => {
+      const all = WORD_REPORTS.filter((r) => wrKey(r) === k).sort((x, y) => y.created_at.localeCompare(x.created_at));
+      const shown = all.filter((r) => statuses.includes(r.status));
+      const c = (s) => all.filter((r) => r.status === s).length;
+      const fixes = new Map();
+      for (const r of shown) {
+        const fix = (r.suggested_fix ?? "").trim();
+        if (!fix) continue;
+        const g = fixes.get(fix.toLowerCase()) ?? { fix, n: 0 };
+        g.n += 1;
+        fixes.set(fix.toLowerCase(), g);
+      }
+      return {
+        card_key: k, card_id: all[0].card_id, rank: all[0].card_rank, lemma_ar: all[0].card_lemma_ar, lemma_translit: all[0].card_lemma_translit, senses: all[0].card_senses,
+        total: all.length, new_count: c("new"), triaged_count: c("triaged"), accepted_count: c("accepted"), declined_count: c("declined"), shipped_count: c("shipped"),
+        open_count: c("new") + c("triaged") + c("accepted"), reporters: new Set(shown.map((r) => WR_WHO.get(r.id) ?? r.id)).size, categories: [...new Set(shown.map((r) => r.category))].sort(),
+        last_reported_at: shown.map((r) => r.created_at).sort().at(-1),
+        top_fixes: [...fixes.values()].sort((x, y) => y.n - x.n || x.fix.localeCompare(y.fix)).slice(0, 5), _shown: shown.length,
+      };
+    }).sort((x, y) => y._shown - x._shown || y.last_reported_at.localeCompare(x.last_reported_at) || x.card_key.localeCompare(y.card_key));
+    return { data: structuredClone(rows.map(({ _shown, ...r }) => r)), error: null };
+  }
+  if (name === "word_reports") {
+    const k = String(a.p_card ?? "").trim();
+    if (!k) return wrBad("Choose a card.");
+    const cols = ["id", "created_at", "card_rank", "card_lemma_ar", "card_lemma_translit", "card_senses", "card_verse_key", "card_highlight_ar",
+      "card_highlight_gloss", "category", "suggested_fix", "notes", "status", "resolution_note", "notify", "platform", "app_version", "content_version", "resolved_at"];
+    const rows = WORD_REPORTS.filter((r) => wrKey(r) === k).sort((x, y) => y.created_at.localeCompare(x.created_at));
+    return { data: rows.map((r) => Object.fromEntries(cols.map((c) => [c, structuredClone(r[c] ?? null)]))), error: null };
+  }
+  if (name === "set_word_report_status") {
+    const status = String(a.p_status ?? "").trim().toLowerCase();
+    const note = String(a.p_note ?? "").trim() || null;
+    if (!WR_ALL.includes(status)) return wrBad(`Unknown status "${a.p_status}": use new, triaged, accepted, declined or shipped.`);
+    if (status === "declined" && !note) return wrBad("Write a note to decline a report: the learner can read it under \"Your reports\".");
+    const ids = [...new Set(a.p_ids ?? [])];
+    if (!ids.length) return wrBad("Choose at least one report.");
+    const hit = WORD_REPORTS.filter((r) => ids.includes(r.id));
+    for (const r of hit) {
+      const changed = r.status !== status;
+      r.resolution_note = note ?? (changed ? null : r.resolution_note);
+      r.status = status;
+      if (["declined", "shipped"].includes(status)) r.resolved_at ??= iso(Date.now());
+      else if (changed) r.resolved_at = null;
+    }
+    return { data: structuredClone(hit.map((r) => ({ id: r.id, status: r.status, resolution_note: r.resolution_note, resolved_at: r.resolved_at }))), error: null };
+  }
+  return { data: null, error: { message: `no rpc ${name}` } };
+}
+
 export const supa = {
   from: (t) => new Query(t),
   async rpc(name, args) {
     await sleep(200);
+    if (/^(word_report_cards|word_reports|set_word_report_status|word_report_counts)$/.test(name)) return wrRpc(name, args);
     if (name === "claim_membership") return { data: ROLE, error: null };
     if (name === "claim_memberships") return { data: myWorkspaces.map((w) => ({ workspace_id: w, role: ROLE })), error: null };
     if (name === "seed_workspace_settings") {

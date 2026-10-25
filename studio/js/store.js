@@ -6,6 +6,7 @@
 
 import { supa, setApiWorkspace } from "./supa.js";
 import { setLeverFields } from "./kpi.js";
+import { normalizeCounts, reportsEnabled } from "./reports.js";
 
 const TABLES = {
   reels: { order: "id", key: "id" },
@@ -45,6 +46,9 @@ export const store = {
   jobs: new Map(),
   /** post_id -> array of snapshots, oldest first */
   metrics: new Map(),
+  /** Word reports (Maana owners and editors): counts per status for the sidebar badge, from studio.word_report_counts().
+   *  null until loaded, and when the functions are not set up. Not a table: no Realtime, refreshed on a timer. */
+  reportCounts: null,
   listeners: new Set(),
   on(fn) {
     this.listeners.add(fn);
@@ -223,6 +227,7 @@ export async function openWorkspace(id) {
   setLeverFields(ws.levers?.fields ?? null);
   for (const name of Object.keys(TABLES)) store[name].clear();
   store.metrics.clear();
+  store.reportCounts = null;
   resetReload();
   await loadAll(seq);
   // A brand-new workspace has no settings rows: an owner seeds the defaults once.
@@ -294,6 +299,27 @@ function subscribe() {
       down = true;
     }
   });
+}
+
+/** Keeps the sidebar badge in step with a fresh answer from studio.word_report_counts() (or null). */
+export function setReportCounts(data) {
+  store.reportCounts = normalizeCounts(data);
+  store.emit("reports");
+  return store.reportCounts;
+}
+
+/** Loads the word-report counts for the badge. Never throws: without the role or the database functions the badge stays empty. */
+export async function loadReportCounts() {
+  const wsId = store.wsId;
+  if (!reportsEnabled(wsId, store.role)) return setReportCounts(null);
+  let out = { data: null, error: null };
+  try {
+    out = await supa.rpc("word_report_counts");
+  } catch (e) {
+    out = { data: null, error: e };
+  }
+  if (wsId !== store.wsId) return null;
+  return setReportCounts(out.error ? null : out.data);
 }
 
 /** Hash link inside the open workspace: href("posts?post=1") -> "#/w/maana/posts?post=1". */

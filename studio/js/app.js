@@ -9,9 +9,10 @@
 // re-render themselves on store changes.
 
 import { supa } from "./supa.js";
-import { store, loadWorkspaces, openWorkspace, href } from "./store.js";
+import { store, loadWorkspaces, openWorkspace, loadReportCounts, href } from "./store.js";
 import { h, clear, toast, fmt } from "./ui.js";
 import { mediaSrc } from "./media.js";
+import { badgeText, reportsEnabled } from "./reports.js";
 
 const VIEWS = [
   { key: "dashboard", label: "Dashboard", module: "./views/dashboard.js" },
@@ -23,16 +24,20 @@ const VIEWS = [
   { key: "calendar", label: "Calendar", module: "./views/calendar.js" },
   { key: "connections", label: "Connections", module: "./views/connections.js" },
   { key: "alerts", label: "Alerts", module: "./views/alerts.js" },
+  // Word reports (Maana only): "Report this card" submissions from the app, for owners and editors
+  { key: "reports", label: "Reports", module: "./views/reports.js", edit: true, only: "maana" },
   { key: "settings", label: "Settings", module: "./views/settings.js" },
   // Add your own (LRN-52): opened from Library, not a menu item
   { key: "upload", label: "Add your own", module: "./views/upload.js", edit: true, hidden: true },
 ];
 
 const LAST_WS_KEY = "studio.lastWorkspace";
+const REPORT_BADGE_MS = 5 * 60e3;   // word reports are not Realtime: the badge asks again every few minutes
 const app = document.getElementById("app");
 let cleanup = null;
 let unsubscribe = null;
 let switching = null;
+let reportTimer = null;
 
 function parseHash() {
   const raw = location.hash.replace(/^#\/?/, "");
@@ -144,7 +149,9 @@ function renderNotMember(email) {
 function switchTo(id) {
   if (id === store.wsId) return;
   const { view } = parseHash();
-  location.hash = `#/w/${id}/${VIEWS.some((v) => v.key === view) ? view : "dashboard"}`;
+  // A view that belongs to one workspace (Reports) does not follow the switch to the other.
+  const target = VIEWS.find((v) => v.key === view && (!v.only || v.only === id));
+  location.hash = `#/w/${id}/${target ? view : "dashboard"}`;
 }
 
 /** Segmented "Maana | Mawadda" control; nothing when there is one workspace. */
@@ -166,9 +173,10 @@ function shell() {
       h("a.brand", { href: href("dashboard"), title: brandName }, logo(ws),
         h("span.brand-text", h("span.brand-name", ws?.name ?? "Studio"), h("span.brand-sub", "Studio"))),
       switcher()),
-    VIEWS.filter((v) => !v.hidden && (!v.edit || store.canEdit())).map((v) =>
+    VIEWS.filter((v) => !v.hidden && (!v.edit || store.canEdit()) && (!v.only || v.only === store.wsId)).map((v) =>
       h("a.nav-link", { href: href(v.key), "data-view": v.key }, v.label,
-        v.key === "alerts" ? h("span.badge#alert-count") : null)),
+        v.key === "alerts" ? h("span.badge#alert-count") : null,
+        v.key === "reports" ? h("span.badge#report-count", { title: "New word reports" }) : null)),
     h("div.side-foot",
       h("span.live-dot#live-dot", { title: "Realtime connection" }),
       h("span.who", `${store.email} (${store.role} in ${ws?.short_name ?? ws?.name})`),
@@ -182,6 +190,16 @@ function shell() {
   if (unsubscribe) unsubscribe();
   unsubscribe = store.on(updateChrome);
   updateChrome();
+  watchReports();
+}
+
+/** The Reports badge: load the counts now and again every few minutes (only Maana owners and editors have the view). */
+function watchReports() {
+  clearInterval(reportTimer);
+  reportTimer = null;
+  if (!reportsEnabled(store.wsId, store.role)) return;
+  loadReportCounts();
+  reportTimer = setInterval(() => { if (!document.hidden) loadReportCounts(); }, REPORT_BADGE_MS);
 }
 
 function updateChrome() {
@@ -195,6 +213,8 @@ function updateChrome() {
     const n = [...store.alerts.values()].filter((a) => a.severity === "error" || a.severity === "warn").length;
     badge.textContent = n ? String(n) : "";
   }
+  const reportBadge = document.getElementById("report-count");
+  if (reportBadge) reportBadge.textContent = badgeText(store.reportCounts);
 }
 
 async function enterWorkspace(id) {
@@ -275,6 +295,8 @@ async function onSession(session) {
     booted = false;
     store.ready = false;
     store.workspaces = [];
+    clearInterval(reportTimer);
+    reportTimer = null;
     renderSignIn();
     return;
   }

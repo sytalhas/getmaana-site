@@ -109,6 +109,28 @@ fileDetails) and raises a `quality_drop` alert when it is under 95% of what was 
 the apps' upload-quality settings. Files reach the release through content-creator's upload presets
 (`engine/shared/media_quality.py`).
 
+### Word reports (Maana only)
+
+Sidebar **Reports** (`#/w/maana/reports`, `js/views/reports.js`, rules in `js/reports.js`): what learners flag with "Report this card" in
+the Maana app, read and triaged in Studio instead of by email. The reports live in `public.card_reports`, which learners can only insert
+into; Studio reaches them through four security-definer functions and never reads the table: `studio.word_report_cards(p_status)` (one
+row per card; Open, New, Accepted, Shipped, Declined, All), `studio.word_reports(p_card)`, `studio.set_word_report_status(p_ids,
+p_status, p_note)` and `studio.word_report_counts()` (the sidebar badge counts new reports; it asks again every 5 minutes, because the
+table has no Realtime). Migration: `maana/supabase/migrations/20261024170000_studio_word_reports.sql`.
+
+- **Who.** Every function checks `studio.can_edit('maana')`: owners and editors of Maana only. A viewer, a Mawadda-only member, a signed-in user
+  with no role and `anon` are refused by the database, and the view and its nav item are hidden for them. Mawadda has no Reports view.
+- **Privacy.** `user_id` and `device_id` never leave the database; the list shows how many different learners reported a card.
+- **Triage.** Tick reports on a card's page, then **Mark triaged**, **Accept**, **Decline** (a note is required: the learner reads it in the
+  app) or **Mark shipped** (confirm the fix is already live; note optional). A shipped report is final in Studio. Studio never edits a
+  card, writes `content_patches` or touches `content_version`: a patch-shipped fix is closed with `maana/tools/reports/02_accept_and_ship.sql`
+  (docs/reports/TRIAGE.md). The page says "Fix a card only from a cited source (docs/reports/TRIAGE.md)."
+- **Not set up yet.** Until the migration is applied the page shows a calm message and the command to run
+  (`! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f supabase/migrations/20261024170000_studio_word_reports.sql`).
+- **Arabic.** Words are set in Amiri Quran (Google Fonts, `--arabic` in `css/studio.css`, linked from `index.html`).
+- **Dev.** `dev/mock-supa.js` answers the four functions; `?reports=missing` (not set up), `denied` and `empty` show the other states.
+  Tests: `test/reports.test.mjs` (rules) and `test/reports_view.test.mjs` (the page in a browser, needs `PW_DIR`).
+
 ### Data model (schema `studio`)
 
 `workspaces` (one per product) · `members` (allowlist + roles per workspace) · `settings` (targets, spend cap, cadence, App Store) · `reels` (creative + levers) · `assets` (files) · `posts` (reel × platform × type, status, times, platform ids) · `metrics_snapshots` (time series; view `latest_metrics`) · `experiments` · `connections` + `connection_secrets` · `jobs` (launch and sync queue with retries) · `campaign_links` · `alerts` · `audit_log`.
