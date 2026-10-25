@@ -43,7 +43,8 @@ Qordova app.
   password-reset emails.
 
 We use this information only to sign you in, keep your card reports linked to
-you, and contact you about your account.
+you, and contact you about your account. If you also choose to leave an email
+address on a card report, section 3 explains how that is used.
 
 ## 3. Card reports
 
@@ -54,6 +55,8 @@ If you report a problem with a word card, the app sends:
 - the category you choose and any note or suggested fix you type,
 - the platform (iOS or Android),
 - whether you asked to be told when the report is fixed,
+- whether you said we may contact you and, if you did, the email address you
+  gave (see below),
 - your account user ID, if you are signed in (including a guest account), and
 - a random device identifier created by the app (not your phone's advertising
   ID or hardware ID). It is used to limit spam and to show you the status of
@@ -63,6 +66,15 @@ We use reports to correct the word data. Corrections may be published to all
 users as content updates. If you asked to be told, the app shows you when a
 report you sent has been fixed. Do not include personal information in report
 notes.
+
+**Contacting you about a report (optional).** The report sheet asks "Can we
+contact you?", and the switch is off. Leaving an email address is optional, and
+a report works the same without one. If you switch it on, the app suggests the
+email address of your account, if you have one, and you can change it. We use
+the address only to reply about that report or to invite you to help improve
+Maana's content, such as its word meanings. It is visible only to the Maana
+team, and we never share it or sell it. It is deleted when you delete your
+account, or when you ask us to at [{{support_email}}](mailto:{{support_email}}).
 
 ## 4. Supporter plans and tips
 
@@ -104,20 +116,22 @@ in your phone's settings.
 ## 8. Where data is stored and for how long
 
 Server data is stored by Supabase in the United States (East US, Ohio). We
-keep account data while your account exists. {{report_retention}} If you delete your account, your reports are kept without your user ID or device identifier.
+keep account data while your account exists. {{report_retention}} If you delete your account, your reports are kept without your user ID, device identifier or contact email address.
 
 ## 9. Your choices and rights
 
 You can:
 
-- use Maana as a guest without giving an email address;
+- use Maana as a guest without giving an email address, and send card reports
+  without leaving one;
 - turn off notifications;
-- ask us for a copy of, or deletion of, your account data by contacting us at
+- ask us for a copy of, or deletion of, your account data, or to remove an email
+  address you left on a card report, by contacting us at
   [{{support_email}}](mailto:{{support_email}}); and
 - delete your account from within the app: open the account menu on the home
   screen and choose **Delete account** (see [how to delete your account](/delete-account/)). This deletes your account and removes
-  your user ID and device identifier from any card reports you sent (the report
-  content is kept so the fix can still be made). It does not cancel a
+  your user ID, device identifier and any contact email address from any card
+  reports you sent (the report content is kept so the fix can still be made). It does not cancel a
   Supporter subscription, which you manage in your App Store account
   (Settings › Apple ID › Subscriptions) or Google Play account.
 

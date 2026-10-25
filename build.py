@@ -96,7 +96,8 @@ def render_legal(name):
     body = markdown.markdown(md, extensions=["sane_lists"])
     # external links open normally but are marked
     body = body.replace('<a href="http', '<a rel="noopener" href="http')
-    date = S.get("effective_date")
+    # A document may carry its own date ("privacy_updated"); otherwise the shared effective_date.
+    date = S.get(f"{name}_updated") or S.get("effective_date")
     stamp = (f"Last updated: {E(date)}" if date
              else "Effective date: pending")
     return stamp, body
