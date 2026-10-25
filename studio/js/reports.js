@@ -3,6 +3,11 @@
 // database functions that only Maana owners and editors may call (maana/supabase/migrations/20261024170000_studio_word_reports.sql).
 // Pure (no DOM, no network): views/reports.js draws the pages, store.js and app.js use the badge helpers,
 // test/reports.test.mjs tests these rules.
+//
+// Contact (opt-in): a learner may leave an email when reporting ("Yes, you can email me"). studio.word_reports then
+// returns contact_ok and contact_email for that report, and studio.word_report_contributors lists the people who agreed.
+// Both come from 20261024220000_report_contact.sql. The address is for replying to the report or inviting the person to
+// help improve Maana's content, nothing else (docs/reports/TRIAGE.md).
 
 export const WORKSPACE = "maana";
 export const PAGE_SIZE_CAP = 500;     // the database returns at most this many cards or reports per call
@@ -318,6 +323,111 @@ export function classifyError(error) {
   }
   if (code === "42501" || /not allowed|permission denied/i.test(message)) return { kind: "forbidden", message };
   return { kind: "other", message };
+}
+
+// ---------------------------------------------------------------------------
+// Contact: people who agreed to be contacted (opt-in)
+// ---------------------------------------------------------------------------
+
+/** The one command that sets up the contact fields and the Contributors view. The owner runs it once, in Claude Code. */
+export const CONTACT_FILE = "supabase/migrations/20261024220000_report_contact.sql";
+export const CONTACT_SETUP_COMMAND = `! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f ${CONTACT_FILE}`;
+
+/** Said at the top of the Contributors view, and the only things these addresses are for. */
+export const CONTACT_LINE = "People who agreed to be contacted. Use this only to reply or invite them to help.";
+
+/** The mark on a report whose sender agreed to be contacted. */
+export const CONTACT_MARK = "✉ contact ok";
+
+export const MODES = [
+  { key: "cards", label: "By card" },
+  { key: "contributors", label: "Contributors" },
+];
+
+/** The list's mode from a URL: Contributors, or the cards (anything else). */
+export function normalizeMode(mode) {
+  return mode === "contributors" ? "contributors" : "cards";
+}
+
+/** The path (for store.href) to the Contributors view. */
+export const contributorsPath = "reports?view=contributors";
+
+// A light look at an address before it becomes a link. The database only keeps ASCII addresses of a plain shape; this is
+// the second line of defence for a value that got there another way.
+const ADDRESS = /^[^\s@]+@[^\s@]+$/;
+
+/** The address of a report whose sender agreed to be contacted (contact_ok true and a usable address), else null. */
+export function contactOf(report) {
+  if (report?.contact_ok !== true) return null;
+  const email = typeof report.contact_email === "string" ? report.contact_email.trim() : "";
+  return ADDRESS.test(email) ? email : null;
+}
+
+/**
+ * A mailto: link for an address. The address is percent-encoded (the @ kept), so a ?, &, # or % inside it can never turn
+ * into a mail header such as bcc: it stays part of the address. The subject is optional.
+ */
+export function mailtoHref(email, subject) {
+  const to = encodeURIComponent(String(email ?? "").trim()).replace(/%40/g, "@");
+  return `mailto:${to}${subject ? `?subject=${encodeURIComponent(subject)}` : ""}`;
+}
+
+/** The subject suggested when replying to one report: "About your Maana report on ʿabd". */
+export function replySubject(report) {
+  const word = String(report?.card_lemma_translit ?? "").trim();
+  return word ? `About your Maana report on ${word}` : "About your Maana report";
+}
+
+/** "1 person" / "5 people". */
+export function peopleLabel(n) {
+  return `${n} ${n === 1 ? "person" : "people"}`;
+}
+
+const count = (v) => (Number.isFinite(Number(v)) && v != null ? Math.max(0, Math.round(Number(v))) : 0);
+
+/** How many of their reports were accepted or shipped: the first thing contributors are ranked by. */
+export function contributorScore(c) {
+  return count(c?.accepted_count) + count(c?.shipped_count);
+}
+
+/**
+ * Contributors in the database's order: accepted + shipped, then total, then the latest report, then the address. The
+ * input is not changed.
+ */
+export function sortContributors(rows) {
+  return [...(rows ?? [])].sort((a, b) =>
+    contributorScore(b) - contributorScore(a)
+    || count(b.total) - count(a.total)
+    || String(b.last_reported_at ?? "").localeCompare(String(a.last_reported_at ?? ""))
+    || String(a.email ?? "").localeCompare(String(b.email ?? "")));
+}
+
+/** How a contributor's reports stand, zero counts left out: "1 accepted, 1 shipped, 2 open, 1 declined". */
+export function contributorBreakdown(c) {
+  return [["accepted", c?.accepted_count], ["shipped", c?.shipped_count], ["open", c?.open_count], ["declined", c?.declined_count]]
+    .map(([label, n]) => [label, count(n)])
+    .filter(([, n]) => n > 0)
+    .map(([label, n]) => `${n} ${label}`)
+    .join(", ");
+}
+
+/** The cards a contributor reported, most reported first, as the database listed them (at most 30). */
+export function contributorCards(c) {
+  return (Array.isArray(c?.cards) ? c.cards : []).filter((x) => x && x.card_key);
+}
+
+/** "+3 more" when the database cut the list of cards (it sends at most 30 of card_count). */
+export function moreCards(c) {
+  const more = count(c?.card_count) - contributorCards(c).length;
+  return more > 0 ? `+${more} more` : "";
+}
+
+/** "4 people agreed to be contacted, 11 reports in all." Empty when there is nobody (the empty state says so). */
+export function contributorsSummary(rows) {
+  const list = rows ?? [];
+  if (!list.length) return "";
+  const reports = list.reduce((sum, c) => sum + count(c.total), 0);
+  return `${peopleLabel(list.length)} agreed to be contacted, ${reportsLabel(reports)} in all.`;
 }
 
 // ---------------------------------------------------------------------------

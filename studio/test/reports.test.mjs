@@ -3,6 +3,8 @@
 // accepted), the sidebar badge (new reports only), the card list order and counts, grouping suggested fixes the way the
 // database does, what each triage action allows (shipped is final, declined cannot be shipped, declining needs a note),
 // and how an error from the database functions is told apart ("not set up yet" shows the setup command).
+// Contact (opt-in): who agreed to be emailed (only a report that carries consent has an address), mailto links that keep
+// an address from adding mail headers, and the Contributors ranking (accepted + shipped, then total, then latest).
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -11,6 +13,8 @@ import {
   badgeCount, badgeText, reportsLabel, openSummary, countByStatus, cardCount, sortCards, cardMeta, breakdown, learnersLabel,
   ofTotal, categoryLabel, buildLabel, sensesList, topFixes, newestFirst, reportsForTab, startTab, isSelectable, selectableIds,
   actionProblem, noteProblem, rpcArgs, doneMessage, classifyError, cardPath, listPath,
+  CONTACT_FILE, CONTACT_SETUP_COMMAND, CONTACT_LINE, CONTACT_MARK, MODES, normalizeMode, contributorsPath, contactOf, mailtoHref,
+  replySubject, peopleLabel, contributorScore, sortContributors, contributorBreakdown, contributorCards, moreCards, contributorsSummary,
 } from "../js/reports.js";
 
 const R = (id, status, extra = {}) => ({ id, status, created_at: `2026-10-${String(10 + Number(id.replace(/\D/g, "") || 0)).padStart(2, "0")}T12:00:00Z`, ...extra });
@@ -251,4 +255,118 @@ test("links: a card key (even rank:212) survives the hash, and the tab comes bac
   assert.equal(listPath("nope"), "reports");
   // what the router will read back
   assert.equal(new URLSearchParams("card=rank%3A212&tab=declined").get("card"), "rank:212");
+});
+
+// ---------------------------------------------------------------------------
+// Contact (opt-in): people who agreed to be contacted
+// ---------------------------------------------------------------------------
+
+test("the contact setup command is the one the owner runs; the setup command for reports is unchanged", () => {
+  assert.equal(CONTACT_FILE, "supabase/migrations/20261024220000_report_contact.sql");
+  assert.equal(CONTACT_SETUP_COMMAND,
+    "! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f supabase/migrations/20261024220000_report_contact.sql");
+  assert.notEqual(CONTACT_SETUP_COMMAND, SETUP_COMMAND);
+  assert.equal(SETUP_COMMAND,
+    "! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f supabase/migrations/20261024170000_studio_word_reports.sql");
+});
+
+test("what the Contributors view says: who these people are and what the addresses are for", () => {
+  assert.equal(CONTACT_LINE, "People who agreed to be contacted. Use this only to reply or invite them to help.");
+  assert.equal(CONTACT_MARK, "✉ contact ok");
+  assert.deepEqual(MODES.map((m) => m.label), ["By card", "Contributors"]);
+  assert.equal(normalizeMode("contributors"), "contributors");
+  assert.equal(normalizeMode("cards"), "cards");
+  assert.equal(normalizeMode("nonsense"), "cards", "anything else is the list of cards");
+  assert.equal(normalizeMode(undefined), "cards");
+  assert.equal(contributorsPath, "reports?view=contributors");
+});
+
+test("an address belongs to a report only when its sender agreed", () => {
+  assert.equal(contactOf({ contact_ok: true, contact_email: "amina@example.com" }), "amina@example.com");
+  assert.equal(contactOf({ contact_ok: true, contact_email: "  amina@example.com " }), "amina@example.com", "trimmed");
+  assert.equal(contactOf({ contact_ok: false, contact_email: "amina@example.com" }), null, "no consent, no address, even if one is present");
+  assert.equal(contactOf({ contact_ok: "true", contact_email: "amina@example.com" }), null, "only a real true counts");
+  assert.equal(contactOf({ contact_ok: true, contact_email: null }), null);
+  assert.equal(contactOf({ contact_ok: true, contact_email: "   " }), null);
+  assert.equal(contactOf({ contact_ok: true, contact_email: "not an address" }), null);
+  assert.equal(contactOf({ contact_ok: true, contact_email: 42 }), null);
+  // a report from before the migration (the function returns no contact fields)
+  assert.equal(contactOf({ id: "x", status: "new" }), null);
+  assert.equal(contactOf(null), null);
+  assert.equal(contactOf(undefined), null);
+});
+
+test("mailto links keep everything inside the address: it can never add a mail header", () => {
+  assert.equal(mailtoHref("amina@example.com"), "mailto:amina@example.com");
+  assert.equal(mailtoHref("  amina@example.com "), "mailto:amina@example.com", "trimmed");
+  assert.equal(mailtoHref("sam+maana@example.com"), "mailto:sam%2Bmaana@example.com", "a plus is not a space");
+  assert.equal(mailtoHref("o'brien@example.org"), "mailto:o'brien@example.org");
+  // the database refuses these; the page must be safe even if one got in another way
+  assert.equal(mailtoHref("x@y.co?bcc=a%40evil.co"), "mailto:x@y.co%3Fbcc%3Da%2540evil.co");
+  assert.equal(mailtoHref("x@y.co&cc=a@b.co"), "mailto:x@y.co%26cc%3Da@b.co");
+  assert.equal(mailtoHref("x@y.co#frag"), "mailto:x@y.co%23frag");
+  assert.ok(!mailtoHref("x@y.co?bcc=a%40evil.co").includes("?"), "no query string from an address");
+  assert.equal(mailtoHref("amina@example.com", "About your Maana report on ʿabd"),
+    "mailto:amina@example.com?subject=About%20your%20Maana%20report%20on%20%CA%BFabd");
+  assert.equal(mailtoHref("amina@example.com", ""), "mailto:amina@example.com");
+  assert.equal(mailtoHref(null), "mailto:");
+});
+
+test("the subject suggested for replying names the word", () => {
+  assert.equal(replySubject({ card_lemma_translit: "ʿabd" }), "About your Maana report on ʿabd");
+  assert.equal(replySubject({ card_lemma_translit: "  " }), "About your Maana report");
+  assert.equal(replySubject({}), "About your Maana report");
+});
+
+const P = (email, extra = {}) => ({
+  email, total: 1, open_count: 0, accepted_count: 0, shipped_count: 0, declined_count: 0,
+  first_reported_at: "2026-10-01T00:00:00Z", last_reported_at: "2026-10-10T00:00:00Z", card_count: 1, cards: [], ...extra,
+});
+
+test("contributors are ranked by accepted + shipped, then total, then the latest report, then the address", () => {
+  const rows = [
+    P("sam@x.org", { total: 5, open_count: 3, declined_count: 2 }),                                       // score 0, the most reports
+    P("amina@x.org", { total: 3, shipped_count: 1, open_count: 2 }),                                      // score 1, total 3
+    P("yusuf@x.org", { total: 2, accepted_count: 1, open_count: 1, last_reported_at: "2026-10-05T00:00:00Z" }),   // score 1, total 2, older
+    P("layla@x.org", { total: 2, shipped_count: 1, open_count: 1, last_reported_at: "2026-10-09T00:00:00Z" }),    // score 1, total 2, newer
+    P("zed@x.org", { total: 2, accepted_count: 1, shipped_count: 1 }),                                    // score 2
+    P("bob@x.org", { total: 1, accepted_count: 1, last_reported_at: "2026-10-05T00:00:00Z" }),             // score 1, total 1
+    P("ann@x.org", { total: 1, accepted_count: 1, last_reported_at: "2026-10-05T00:00:00Z" }),             // same as bob: the address decides
+  ];
+  const before = rows.map((r) => r.email);
+  assert.deepEqual(sortContributors(rows).map((r) => r.email),
+    ["zed@x.org", "amina@x.org", "layla@x.org", "yusuf@x.org", "ann@x.org", "bob@x.org", "sam@x.org"]);
+  assert.deepEqual(rows.map((r) => r.email), before, "the input is not changed");
+  assert.deepEqual(sortContributors(null), []);
+  assert.equal(contributorScore(P("a@b.co", { accepted_count: 2, shipped_count: 3, declined_count: 9 })), 5, "declined and open do not count");
+  assert.equal(contributorScore(P("a@b.co", { accepted_count: "2", shipped_count: null })), 2);
+  assert.equal(contributorScore(null), 0);
+});
+
+test("a contributor's line: how their reports stand, the cards they reported, and a note when the list was cut", () => {
+  assert.equal(contributorBreakdown(P("a@b.co", { accepted_count: 1, shipped_count: 2, open_count: 3, declined_count: 4 })), "1 accepted, 2 shipped, 3 open, 4 declined");
+  assert.equal(contributorBreakdown(P("a@b.co", { shipped_count: 1, open_count: 2 })), "1 shipped, 2 open", "zero counts are left out");
+  assert.equal(contributorBreakdown(P("a@b.co")), "");
+  assert.equal(contributorBreakdown(null), "");
+
+  const cards = [{ card_key: "abd", lemma_ar: "عَبْد", lemma_translit: "ʿabd", rank: 73, n: 2 }, { card_key: "rank:212", lemma_ar: "نُور", lemma_translit: "nūr", rank: 212, n: 1 }];
+  assert.deepEqual(contributorCards(P("a@b.co", { cards })), cards);
+  assert.deepEqual(contributorCards(P("a@b.co", { cards: [null, { n: 1 }, ...cards] })), cards, "entries without a card key are dropped");
+  assert.deepEqual(contributorCards(P("a@b.co", { cards: null })), []);
+  assert.equal(moreCards(P("a@b.co", { cards, card_count: 2 })), "");
+  assert.equal(moreCards(P("a@b.co", { cards, card_count: 35 })), "+33 more");
+  assert.equal(moreCards(P("a@b.co", { cards: [], card_count: 0 })), "");
+
+  assert.equal(peopleLabel(1), "1 person");
+  assert.equal(peopleLabel(4), "4 people");
+  assert.equal(contributorsSummary([P("a@b.co", { total: 3 }), P("c@d.co", { total: 2 })]), "2 people agreed to be contacted, 5 reports in all.");
+  assert.equal(contributorsSummary([P("a@b.co", { total: 1 })]), "1 person agreed to be contacted, 1 report in all.");
+  assert.equal(contributorsSummary([]), "");
+  assert.equal(contributorsSummary(null), "");
+});
+
+test("a missing Contributors function is 'not set up yet', not an error", () => {
+  const gone = classifyError({ code: "PGRST202", message: "Could not find the function studio.word_report_contributors without parameters in the schema cache" });
+  assert.equal(gone.kind, "not_set_up");
+  assert.equal(classifyError({ code: "42501", message: "Not allowed: word reports are for owners and editors of the Maana workspace." }).kind, "forbidden");
 });

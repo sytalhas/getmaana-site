@@ -7,16 +7,24 @@
 // role themselves, never return a reporter's user or device id, and never touch card content: shipping a fix stays a
 // separate step (an app build or a content_patches row, docs/reports/TRIAGE.md). If the functions have not been applied
 // yet, the page says so and shows the one command that sets them up. The rules live in ../reports.js (unit-tested).
+//
+// Contact (opt-in): a learner may leave an email when reporting. A report that carries one shows "✉ contact ok" with a
+// mailto link, and the Contributors view (#/w/maana/reports?view=contributors, studio.word_report_contributors) ranks the
+// people who agreed. The addresses are only for replying to a report or inviting the person to help improve Maana's
+// content (docs/reports/TRIAGE.md). Both need maana/supabase/migrations/20261024220000_report_contact.sql; without it the
+// reports look as before and Contributors says it is not set up yet, with the command.
 
 import { supa } from "../supa.js";
 import { store, href, setReportCounts } from "../store.js";
 import { h, clear, toast, fmt, modal, empty } from "../ui.js";
 import {
-  RULE_LINE, SETUP_COMMAND, PAGE_SIZE_CAP, NOTE_MAX, TABS, STATUSES, ACTIONS,
+  RULE_LINE, SETUP_COMMAND, CONTACT_SETUP_COMMAND, CONTACT_LINE, CONTACT_MARK, MODES, contributorsPath, PAGE_SIZE_CAP, NOTE_MAX, TABS, STATUSES, ACTIONS,
   reportsEnabled, normalizeTab, normalizeCounts, tabCount, openSummary, cardCount, sortCards, cardMeta, breakdown, ofTotal, learnersLabel,
   categoryLabel, buildLabel, sensesList, statusLabel, statusKind, reportsLabel, topFixes, newestFirst, reportsForTab,
   countByStatus, startTab, isSelectable, selectableIds, actionProblem, noteProblem, rpcArgs, doneMessage, classifyError,
   cardPath, listPath,
+  normalizeMode, contactOf, mailtoHref, replySubject, sortContributors, contributorBreakdown, contributorCards, moreCards,
+  contributorsSummary,
 } from "../reports.js";
 
 // The list remembers its tab while you move around Studio (like What's winning remembers its metric).
@@ -30,14 +38,22 @@ function call(name, args) {
 const arabic = (text, size = "") =>
   h(`span.wr-ar${size ? "." + size : ""}`, { lang: "ar", dir: "rtl" }, text ?? "");
 
-function head(actions) {
+function head(actions, sub) {
   return h("div.view-head",
     h("div", h("h1", "Word reports"),
-      h("p", "What learners flagged with “Report this card” in the Maana app. Read and triage them here: nothing is emailed.")),
+      h("p", sub ?? "What learners flagged with “Report this card” in the Maana app. Read and triage them here: nothing is emailed.")),
     actions ?? null);
 }
 
 const ruleLine = () => h("p.wr-rule", RULE_LINE);
+
+/** By card | Contributors: two views of the same reports. */
+function modeSwitch(active) {
+  return h("nav.wr-modes", { "aria-label": "Word reports views" }, MODES.map((m) => h(`a.wr-mode${m.key === active ? ".active" : ""}`, {
+    href: href(m.key === "contributors" ? contributorsPath : listPath(state.tab)),
+    "aria-current": m.key === active ? "page" : null,
+  }, m.label)));
+}
 
 function copyRow(text) {
   return h("div.copy-row.wr-copy",
@@ -57,21 +73,25 @@ function copyRow(text) {
     }, "Copy"));
 }
 
-/** The calm "not set up yet" page, with the exact command. */
-function setupPanel() {
+/** The calm "not set up yet" page, with the exact command. Word reports and Contributors each have their own migration. */
+function setupPanel(which = "reports") {
+  const contacts = which === "contacts";
   return h("section.card.setup-panel.stack.wr-setup", { role: "status" },
-    h("h2", { style: { margin: 0 } }, "Word reports are not set up yet"),
-    h("p", { style: { margin: 0 } },
-      "This page reads the “Report this card” submissions through four database functions, and they have not been applied " +
-      "to the Maana project yet. Nothing is lost meanwhile: the reports are kept and will be here once this is done."),
+    h("h2", { style: { margin: 0 } }, contacts ? "Contributors are not set up yet" : "Word reports are not set up yet"),
+    h("p", { style: { margin: 0 } }, contacts
+      ? "This page lists people who agreed to be contacted when they reported a word. It needs one more database change, " +
+        "the optional email on a report, and that has not been applied to the Maana project yet. No address is being kept " +
+        "until it is. Word reports keep working as they are."
+      : "This page reads the “Report this card” submissions through four database functions, and they have not been applied " +
+        "to the Maana project yet. Nothing is lost meanwhile: the reports are kept and will be here once this is done."),
     h("ol.setup-steps",
-      h("li", "In Claude Code, in the Maana repo, run this once:", copyRow(SETUP_COMMAND)),
+      h("li", "In Claude Code, in the Maana repo, run this once:", copyRow(contacts ? CONTACT_SETUP_COMMAND : SETUP_COMMAND)),
       h("li", "Reload this page.")),
     h("p.hint", { style: { margin: 0 } }, "The leading ! runs the line as a shell command in Claude Code. The Supabase CLI must be signed in to the Maana project."));
 }
 
-function problemPanel(err, retry) {
-  if (err.kind === "not_set_up") return setupPanel();
+function problemPanel(err, retry, which) {
+  if (err.kind === "not_set_up") return setupPanel(which);
   if (err.kind === "forbidden") {
     return h("div.notice", { role: "alert" }, "Word reports are for owners and editors of Maana. Ask an owner to change your role in Settings.");
   }
@@ -101,6 +121,7 @@ export function render(root, { params = {} } = {}) {
   }
   const ctx = { stop: false };
   if (params.card) renderCard(root, ctx, String(params.card), params);
+  else if (normalizeMode(params.view) === "contributors") renderContributors(root, ctx);
   else renderList(root, ctx, params);
   return () => { ctx.stop = true; };
 }
@@ -118,7 +139,7 @@ function renderList(root, ctx, params) {
 
   clear(root,
     head(h("button.btn.ghost.small", { type: "button", onclick: () => load() }, "Refresh")),
-    ruleLine(), tabs, summary, body);
+    modeSwitch("cards"), ruleLine(), tabs, summary, body);
 
   function row(card) {
     const tab = state.tab;
@@ -289,6 +310,7 @@ function renderCard(root, ctx, key, params) {
     });
     const newest = S.reports[0];
     const newestSenses = newest?.card_senses;
+    const contact = contactOf(r);   // only when the learner switched on "Yes, you can email me"
     const article = h(`article.wr-report${S.selected.has(r.id) ? ".selected" : ""}${selectable ? "" : ".final"}`,
       h("label.wr-pick", { title: selectable ? "Select this report" : "Shipped reports can't be changed here" }, cb),
       h("div.wr-report-body",
@@ -296,6 +318,12 @@ function renderCard(root, ctx, key, params) {
           h("span.tag.wr-cat", categoryLabel(r.category)),
           h(`span.pill${statusKind(r.status) ? "." + statusKind(r.status) : ""}`, statusLabel(r.status)),
           r.notify ? h("span.tag", { title: "The learner asked to be told when it's fixed" }, "Asked to be told") : null,
+          contact ? h("span.wr-contact",
+            h("a.wr-contact-link", {
+              href: mailtoHref(contact, replySubject(r)), title: `Email ${contact}`,
+              "aria-label": `Contact ok: email ${contact}`,
+            }, CONTACT_MARK),
+            h("bdi.small.muted.wr-contact-who", contact)) : null,
           h("span.small.muted", `${buildLabel(r)} · ${fmt.dateTime(r.created_at)}`)),
         r.suggested_fix
           ? h("p.wr-fix", h("span.small.muted", "Suggested fix"), h("strong", { dir: "auto" }, r.suggested_fix))
@@ -413,6 +441,66 @@ function renderCard(root, ctx, key, params) {
   }
 
   drawAll();
+  load();
+}
+
+// ---------------------------------------------------------------------------
+// Contributors: people who agreed to be contacted
+// ---------------------------------------------------------------------------
+
+function renderContributors(root, ctx) {
+  const S = { rows: null, error: null, seq: 0 };
+  const summary = h("p.small.muted.wr-summary");
+  const body = h("div");
+
+  clear(root,
+    head(h("button.btn.ghost.small", { type: "button", onclick: () => load() }, "Refresh"),
+      "Learners who left an email when they reported a word. Nothing is sent from here: you write to them yourself."),
+    modeSwitch("contributors"),
+    h("p.wr-consent", CONTACT_LINE),
+    summary, body);
+
+  function person(c) {
+    const cards = contributorCards(c);
+    const more = moreCards(c);
+    const how = contributorBreakdown(c);
+    const first = c.first_reported_at ? fmt.date(c.first_reported_at) : "";
+    const last = c.last_reported_at ? fmt.date(c.last_reported_at) : "";
+    return h("article.wr-person", { "aria-label": c.email },
+      h("div.wr-person-who",
+        h("a.wr-person-mail", { href: mailtoHref(c.email), title: `Email ${c.email}` }, h("span", { "aria-hidden": "true" }, "✉ "), h("bdi", c.email)),
+        h("span.small.muted", first && last && first !== last ? `Reports from ${first} to ${last}` : first ? `Reported ${first}` : "")),
+      h("div.wr-person-n",
+        h("strong", reportsLabel(Number(c.total) || 0)),
+        how ? h("span.small.muted", how) : null),
+      h("div.wr-person-cards",
+        cards.map((card) => h("a.wr-cardchip", { href: href(cardPath(card.card_key, "all")), title: `${card.lemma_translit} · ${reportsLabel(Number(card.n) || 0)} from this person` },
+          arabic(card.lemma_ar, "sm"), h("span", card.lemma_translit), Number(card.n) > 1 ? h("span.small.muted", `×${card.n}`) : null)),
+        more ? h("span.small.muted", more) : null));
+  }
+
+  function draw() {
+    summary.textContent = S.rows?.length ? `${contributorsSummary(S.rows)} Ranked by accepted plus shipped reports, then by total.` : "";
+    if (S.error) return clear(body, problemPanel(S.error, load, "contacts"));
+    if (!S.rows) return clear(body, h("div.loading", "Loading"));
+    if (!S.rows.length) {
+      return clear(body, empty("Nobody has agreed to be contacted yet. When a learner switches on “Yes, you can email me” while reporting a word, they appear here."));
+    }
+    clear(body, h("div.wr-people", { role: "list" }, sortContributors(S.rows).map((c) => h("div", { role: "listitem" }, person(c)))));
+  }
+
+  async function load() {
+    const seq = ++S.seq;
+    S.rows = null;
+    S.error = null;
+    draw();
+    const out = await call("word_report_contributors");
+    if (ctx.stop || seq !== S.seq) return;
+    if (out.error) S.error = classifyError(out.error);
+    else S.rows = out.data ?? [];
+    draw();
+  }
+
   load();
 }
 

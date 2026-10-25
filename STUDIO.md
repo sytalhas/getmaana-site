@@ -113,23 +113,39 @@ the apps' upload-quality settings. Files reach the release through content-creat
 
 Sidebar **Reports** (`#/w/maana/reports`, `js/views/reports.js`, rules in `js/reports.js`): what learners flag with "Report this card" in
 the Maana app, read and triaged in Studio instead of by email. The reports live in `public.card_reports`, which learners can only insert
-into; Studio reaches them through four security-definer functions and never reads the table: `studio.word_report_cards(p_status)` (one
+into; Studio reaches them through security-definer functions and never reads the table: `studio.word_report_cards(p_status)` (one
 row per card; Open, New, Accepted, Shipped, Declined, All), `studio.word_reports(p_card)`, `studio.set_word_report_status(p_ids,
-p_status, p_note)` and `studio.word_report_counts()` (the sidebar badge counts new reports; it asks again every 5 minutes, because the
+p_status, p_note)`, `studio.word_report_counts()` and `studio.word_report_contributors()` (the sidebar badge counts new reports; it asks again every 5 minutes, because the
 table has no Realtime). Migration: `maana/supabase/migrations/20261024170000_studio_word_reports.sql`.
 
 - **Who.** Every function checks `studio.can_edit('maana')`: owners and editors of Maana only. A viewer, a Mawadda-only member, a signed-in user
   with no role and `anon` are refused by the database, and the view and its nav item are hidden for them. Mawadda has no Reports view.
 - **Privacy.** `user_id` and `device_id` never leave the database; the list shows how many different learners reported a card.
+  The one thing that identifies a person is an email the learner chose to leave (below).
 - **Triage.** Tick reports on a card's page, then **Mark triaged**, **Accept**, **Decline** (a note is required: the learner reads it in the
   app) or **Mark shipped** (confirm the fix is already live; note optional). A shipped report is final in Studio. Studio never edits a
   card, writes `content_patches` or touches `content_version`: a patch-shipped fix is closed with `maana/tools/reports/02_accept_and_ship.sql`
   (docs/reports/TRIAGE.md). The page says "Fix a card only from a cited source (docs/reports/TRIAGE.md)."
 - **Not set up yet.** Until the migration is applied the page shows a calm message and the command to run
   (`! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f supabase/migrations/20261024170000_studio_word_reports.sql`).
+- **Contact (opt-in, owner 2026-10-24).** In the app's report sheet a learner can switch on "Yes, you can email me" ("Can we contact you?",
+  off by default) and leave an email, so the team can reply or invite thoughtful reporters to help improve Maana's content. The server keeps
+  the address only with consent (`public.card_reports.contact_ok`, `contact_email`, `contact_consent_at`; the insert trigger and two table
+  checks enforce it), and `delete_my_account()` erases it. In Studio: `studio.word_reports` also returns `contact_ok` and `contact_email`
+  (the address only when `contact_ok`), and `studio.word_report_contributors()` returns one row per consented address (total, open,
+  accepted, shipped and declined counts, first and last report, the cards reported). A report whose sender agreed shows **✉ contact ok**
+  with a mailto link and the address; **Contributors** (the second button under the title, `#/w/maana/reports?view=contributors`) ranks the
+  people by accepted + shipped reports, then total, with mailto links and the cards they reported, under "People who agreed to be contacted.
+  Use this only to reply or invite them to help." Addresses are for that and nothing else: no marketing, and no contact without consent
+  (docs/reports/TRIAGE.md). mailto links percent-encode the address, so nothing in it can add a mail header. Same access as the rest of
+  Reports (owners and editors of Maana). Migration: `maana/supabase/migrations/20261024220000_report_contact.sql`. Until it is applied the
+  reports look as before and Contributors says "not set up yet" with
+  `! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f supabase/migrations/20261024220000_report_contact.sql`.
 - **Arabic.** Words are set in Amiri Quran (Google Fonts, `--arabic` in `css/studio.css`, linked from `index.html`).
-- **Dev.** `dev/mock-supa.js` answers the four functions; `?reports=missing` (not set up), `denied` and `empty` show the other states.
-  Tests: `test/reports.test.mjs` (rules) and `test/reports_view.test.mjs` (the page in a browser, needs `PW_DIR`).
+- **Dev.** `dev/mock-supa.js` answers the five functions; `?reports=missing` (not set up), `denied` and `empty` show the other states,
+  `?reports=nocontact` is "reports work, the optional-email migration is not applied", and `?contact=hostile` adds a report whose address
+  tries to add a bcc: header to its mailto link. Tests: `test/reports.test.mjs` (rules) and `test/reports_view.test.mjs` (the page in a
+  browser, needs `PW_DIR`; the second test there is the contact mark and Contributors).
 
 ### Data model (schema `studio`)
 

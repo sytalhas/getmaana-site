@@ -27,6 +27,9 @@ const CASES = [
   { name: "maana-reports", q: "role=owner", hash: "#/w/maana/reports" },
   { name: "maana-reports-card", q: "role=owner", hash: "#/w/maana/reports?card=abd" },
   { name: "maana-reports-not-set-up", q: "role=owner&reports=missing", hash: "#/w/maana/reports" },
+  // Contact (opt-in): who agreed to be emailed, and the same view before the optional-email migration is applied
+  { name: "maana-reports-contributors", q: "role=owner", hash: "#/w/maana/reports?view=contributors" },
+  { name: "maana-reports-contributors-not-set-up", q: "role=owner&reports=nocontact", hash: "#/w/maana/reports?view=contributors" },
   { name: "mawadda-only-dashboard", q: "member=mawadda&role=owner", hash: "#/w/mawadda/dashboard" },
   { name: "mawadda-only-forbidden-maana", q: "member=mawadda&role=editor", hash: "#/w/maana/library" },
   { name: "legacy-hash", q: "role=viewer", hash: "#/calendar" },

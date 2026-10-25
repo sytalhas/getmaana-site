@@ -10,8 +10,11 @@
 //   mawadda=empty              a brand-new Mawadda workspace (no reels, posts, connections, settings)
 //   media=private              library URLs look like private GitHub release URLs; POST /media-links
 //                              "signs" them back to the local files (otherwise it echoes each URL)
-//   reports=missing|denied|empty   the Maana word reports (Reports view): missing = the database functions are not applied
-//                              yet (PostgREST's "could not find the function" answer), denied = "Not allowed", empty = none
+//   contact=hostile            one consented report whose address tries to add a bcc: header to its mailto: link
+//   reports=missing|denied|empty|nocontact   the Maana word reports (Reports view): missing = the database functions are not
+//                              applied yet (PostgREST's "could not find the function" answer), denied = "Not allowed", empty = none,
+//                              nocontact = the reports work but the optional-email migration (20261024220000_report_contact.sql)
+//                              is not applied: no contact fields, and the Contributors function is missing
 
 const qs = new URLSearchParams(location.search);
 const ROLE = qs.get("role") ?? "owner";
@@ -676,7 +679,9 @@ export async function uploadFile({ upload, slot }, blob, onProgress) {
 // ---------------------------------------------------------------------------
 // Word reports (Maana): studio.word_report_cards / word_reports / set_word_report_status / word_report_counts on an
 // in-memory set of reports, following the rules of 20261024170000_studio_word_reports.sql (no reporter identity is
-// returned; the status function keeps content_version; declining needs a note).
+// returned; the status function keeps content_version; declining needs a note), plus the optional contact of
+// 20261024220000_report_contact.sql: word_reports also returns contact_ok and contact_email (the address only when
+// contact_ok), and word_report_contributors lists one row per consented address.
 // ---------------------------------------------------------------------------
 
 const REPORTS_MODE = qs.get("reports") ?? "";
@@ -694,28 +699,38 @@ let wrSeq = 0;
 const WR = (card, ago, x) => ({
   id: `00000000-0000-4000-8000-${String(++wrSeq).padStart(12, "0")}`, ...WR_CARDS[card], created_at: iso(now - ago), category: "wrong-meaning",
   suggested_fix: null, notes: null, status: "new", resolution_note: null, notify: false, platform: "ios", app_version: "1.0.2",
-  content_version: null, resolved_at: null, ...x,
+  content_version: null, resolved_at: null, contact_ok: false, contact_email: null, ...x,
 });
+// People who switched on "Yes, you can email me" (the server stores their address trimmed and lowercased).
+const AMINA = { contact_ok: true, contact_email: "amina.k@example.com" };
+const YUSUF = { contact_ok: true, contact_email: "yusuf.m@example.org" };
+const LAYLA = { contact_ok: true, contact_email: "layla@example.net" };
+const SAM = { contact_ok: true, contact_email: "sam+maana@example.com" };
 const WORD_REPORTS = REPORTS_MODE === "empty" ? [] : [
-  WR("abd", 3 * H, { suggested_fix: "servant", notes: "“Slave” reads harshly here. “Servant” is how this verse is usually rendered.", notify: true }),
-  WR("abd", 1 * D, { suggested_fix: "Servant", platform: "android" }),
+  WR("abd", 3 * H, { suggested_fix: "servant", notes: "“Slave” reads harshly here. “Servant” is how this verse is usually rendered.", notify: true, ...AMINA }),
+  WR("abd", 1 * D, { suggested_fix: "Servant", platform: "android", ...AMINA }),
   WR("abd", 2 * D, { suggested_fix: "servant ", notes: "يعني خادم", app_version: "1.0.1" }),
-  WR("abd", 3 * D, { suggested_fix: "worshipper", status: "triaged" }),
+  WR("abd", 3 * D, { suggested_fix: "worshipper", status: "triaged", ...YUSUF }),
   WR("abd", 4 * D, { category: "wrong-example", notes: "The highlighted word in this verse is not the word on the card.", status: "accepted", platform: "android", app_version: "1.0.1",
-    card_senses: "slave · servant", card_verse_key: "2:21", card_highlight_ar: "اعْبُدُوا", card_highlight_gloss: "worship" }),
+    card_senses: "slave · servant", card_verse_key: "2:21", card_highlight_ar: "اعْبُدُوا", card_highlight_gloss: "worship", ...YUSUF }),
   WR("abd", 9 * D, { suggested_fix: "slave", status: "declined", resolution_note: "Kept as is: the verse uses the word for ownership.", resolved_at: iso(now - 8 * D) }),
-  WR("abd", 12 * D, { category: "audio-problem", notes: "The audio cuts off before the end of the word.", status: "shipped", resolution_note: "Fixed in version 1.0.1", content_version: 3, resolved_at: iso(now - 10 * D), notify: true, app_version: "1.0.0" }),
+  WR("abd", 12 * D, { category: "audio-problem", notes: "The audio cuts off before the end of the word.", status: "shipped", resolution_note: "Fixed in version 1.0.1", content_version: 3, resolved_at: iso(now - 10 * D), notify: true, app_version: "1.0.0", ...AMINA }),
   WR("rabb", 5 * H, { category: "wrong-example", suggested_fix: "Use 1:2", notes: "This is the verse from Al-Fatihah, but the card shows another one." }),
   WR("rabb", 20 * H, { category: "audio-problem", notes: "No sound on my phone for this card.", platform: "android" }),
-  WR("rabb", 2 * D, { suggested_fix: "Lord", status: "triaged", notify: true }),
-  WR("salah", 1 * D, { category: "arabic-issue", suggested_fix: "صَلَاة", notes: "The alif is missing the small mark." }),
-  WR("salah", 6 * D, { category: "arabic-issue", notes: "Spelling looks different from my mushaf. <b>not bold</b> <img src=x onerror=alert(1)> " + "It keeps going to check that long notes wrap on a phone without pushing the page sideways. ".repeat(2), platform: "android" }),
-  WR("kitab", 20 * D, { suggested_fix: "scripture", status: "shipped", resolution_note: "Fixed in version 1.0.3", content_version: 7, resolved_at: iso(now - 18 * D) }),
-  WR("kitab", 15 * D, { category: "other", notes: "Please add more examples.", status: "declined", resolution_note: "Thank you. We keep one example per word on purpose.", resolved_at: iso(now - 14 * D) }),
+  WR("rabb", 2 * D, { suggested_fix: "Lord", status: "triaged", notify: true, ...LAYLA }),
+  WR("salah", 1 * D, { category: "arabic-issue", suggested_fix: "صَلَاة", notes: "The alif is missing the small mark.", ...SAM }),
+  WR("salah", 6 * D, { category: "arabic-issue", notes: "Spelling looks different from my mushaf. <b>not bold</b> <img src=x onerror=alert(1)> " + "It keeps going to check that long notes wrap on a phone without pushing the page sideways. ".repeat(2), platform: "android", ...SAM }),
+  WR("kitab", 20 * D, { suggested_fix: "scripture", status: "shipped", resolution_note: "Fixed in version 1.0.3", content_version: 7, resolved_at: iso(now - 18 * D), ...LAYLA }),
+  WR("kitab", 15 * D, { category: "other", notes: "Please add more examples.", status: "declined", resolution_note: "Thank you. We keep one example per word on purpose.", resolved_at: iso(now - 14 * D), ...SAM }),
   WR("nur", 8 * D, { suggested_fix: "light", app_version: null }),
   WR("nur", 7 * D, { category: "root-family", notes: "The root family list is missing a word.", app_version: null }),
   ...[3, 10, 26, 40].map((h, i) => WR("yawm", h * H, { category: i % 2 ? "wrong-example" : "wrong-meaning", suggested_fix: i === 0 ? "Day" : null, status: i === 3 ? "accepted" : "new", platform: i % 2 ? "android" : "ios" })),
 ];
+// contact=hostile adds one report whose address tries to smuggle a bcc: header into a mailto: link (the database refuses such an
+// address; this checks the page treats it as plain text and encodes it anyway).
+if (qs.get("contact") === "hostile") {
+  WORD_REPORTS.push(WR("yawm", 30 * H, { contact_ok: true, contact_email: "x@y.co?bcc=a%40evil.co" }));
+}
 const wrKey = (r) => r.card_id ?? `rank:${r.card_rank}`;
 // Which reports came from the same learner (the browser never sees this, as with the real functions).
 const WR_WHO = new Map([[WORD_REPORTS[0]?.id, "u1"], [WORD_REPORTS[1]?.id, "u1"]]);
@@ -764,8 +779,38 @@ function wrRpc(name, a = {}) {
     if (!k) return wrBad("Choose a card.");
     const cols = ["id", "created_at", "card_rank", "card_lemma_ar", "card_lemma_translit", "card_senses", "card_verse_key", "card_highlight_ar",
       "card_highlight_gloss", "category", "suggested_fix", "notes", "status", "resolution_note", "notify", "platform", "app_version", "content_version", "resolved_at"];
+    // 20261024220000_report_contact.sql adds two more; the address comes back only for a report whose sender agreed.
+    if (REPORTS_MODE !== "nocontact") cols.push("contact_ok", "contact_email");
     const rows = WORD_REPORTS.filter((r) => wrKey(r) === k).sort((x, y) => y.created_at.localeCompare(x.created_at));
-    return { data: rows.map((r) => Object.fromEntries(cols.map((c) => [c, structuredClone(r[c] ?? null)]))), error: null };
+    return { data: rows.map((r) => Object.fromEntries(cols.map((c) => [c, c === "contact_email" ? (r.contact_ok ? r.contact_email : null) : c === "contact_ok" ? !!r.contact_ok : structuredClone(r[c] ?? null)]))), error: null };
+  }
+  if (name === "word_report_contributors") {
+    if (REPORTS_MODE === "nocontact") return wrGone(name);
+    const by = new Map();
+    for (const r of WORD_REPORTS.filter((x) => x.contact_ok && x.contact_email)) {
+      const email = r.contact_email.toLowerCase();
+      if (!by.has(email)) by.set(email, []);
+      by.get(email).push(r);
+    }
+    const rows = [...by.entries()].map(([email, rs]) => {
+      const n = (...ss) => rs.filter((r) => ss.includes(r.status)).length;
+      const times = rs.map((r) => r.created_at).sort();
+      const per = new Map();
+      for (const r of [...rs].sort((x, y) => y.created_at.localeCompare(x.created_at))) {
+        const key = wrKey(r);
+        const g = per.get(key) ?? { card_key: key, rank: r.card_rank, lemma_ar: r.card_lemma_ar, lemma_translit: r.card_lemma_translit, n: 0, last: r.created_at };
+        g.n += 1;
+        per.set(key, g);
+      }
+      const cards = [...per.values()].sort((x, y) => y.n - x.n || y.last.localeCompare(x.last) || x.card_key.localeCompare(y.card_key));
+      return {
+        email, total: rs.length, open_count: n("new", "triaged"), accepted_count: n("accepted"), shipped_count: n("shipped"), declined_count: n("declined"),
+        first_reported_at: times[0], last_reported_at: times.at(-1), card_count: cards.length,
+        cards: cards.slice(0, 30).map(({ last, ...c }) => c),
+      };
+    }).sort((x, y) => (y.accepted_count + y.shipped_count) - (x.accepted_count + x.shipped_count) || y.total - x.total
+      || y.last_reported_at.localeCompare(x.last_reported_at) || x.email.localeCompare(y.email));
+    return { data: structuredClone(rows), error: null };
   }
   if (name === "set_word_report_status") {
     const status = String(a.p_status ?? "").trim().toLowerCase();
@@ -791,7 +836,7 @@ export const supa = {
   from: (t) => new Query(t),
   async rpc(name, args) {
     await sleep(200);
-    if (/^(word_report_cards|word_reports|set_word_report_status|word_report_counts)$/.test(name)) return wrRpc(name, args);
+    if (/^(word_report_cards|word_reports|set_word_report_status|word_report_counts|word_report_contributors)$/.test(name)) return wrRpc(name, args);
     if (name === "claim_membership") return { data: ROLE, error: null };
     if (name === "claim_memberships") return { data: myWorkspaces.map((w) => ({ workspace_id: w, role: ROLE })), error: null };
     if (name === "seed_workspace_settings") {

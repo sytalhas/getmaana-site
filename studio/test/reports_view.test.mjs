@@ -5,6 +5,9 @@
 // shipped needs a confirmation, shipped reports are final, a learner's text stays text, the "not set up yet" page shows
 // the setup command, viewers and Mawadda do not get the view, a phone has no sideways scroll, and the view follows
 // the workspace palette.
+// A second test covers the optional contact: "✉ contact ok" with a mailto link on a report whose sender agreed, the
+// Contributors view (ranking, mailto links, the cards they reported, triage shows up there), its own "not set up yet" page
+// with the exact command, an address that tries to add a mail header, and access.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -23,8 +26,10 @@ try {
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json",
   ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon" };
 const SETUP = "! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f supabase/migrations/20261024170000_studio_word_reports.sql";
+const CONTACT_SETUP = "! supabase db query --linked --project-ref vymyqrxvpzlhzpvsuhya -f supabase/migrations/20261024220000_report_contact.sql";
 
-test("Studio > Reports: badge, list, card page, triage actions, not set up, access", { skip: !chromium && "set PW_DIR to a folder with playwright" }, async () => {
+/** A static server for the repo, a browser, and `open(query, hash, viewport)` for a page of the dev mock. */
+async function studio() {
   const server = createServer(async (req, res) => {
     const p = path.join(ROOT, decodeURIComponent(new URL(req.url, "http://x").pathname));
     if (!p.startsWith(ROOT)) { res.writeHead(403).end(); return; }
@@ -51,6 +56,11 @@ test("Studio > Reports: badge, list, card page, triage actions, not set up, acce
     await page.goto(`${base}?${query}${hash}`);
     return page;
   };
+  return { base, errors, open, close: async () => { await browser.close(); server.close(); } };
+}
+
+test("Studio > Reports: badge, list, card page, triage actions, not set up, access", { skip: !chromium && "set PW_DIR to a folder with playwright" }, async () => {
+  const { base, errors, open, close } = await studio();
   const num = (s) => Number(String(s).replace(/\D/g, ""));
   try {
     // ---- the list, its tabs and the badge --------------------------------------------------------------------------
@@ -239,7 +249,149 @@ test("Studio > Reports: badge, list, card page, triage actions, not set up, acce
 
     assert.deepEqual(errors, []);
   } finally {
-    await browser.close();
-    server.close();
+    await close();
+  }
+});
+
+test("Studio > Reports > Contributors: the contact mark, the people who agreed, mailto links, not set up yet, access", { skip: !chromium && "set PW_DIR to a folder with playwright" }, async () => {
+  const { errors, open, close } = await studio();
+  const names = (page) => page.locator(".wr-person-mail").allInnerTexts().then((t) => t.map((x) => x.replace("✉", "").trim()));
+  try {
+    // ---- the mark on a report: only where the learner agreed ---------------------------------------------------------------
+    let page = await open("role=owner", "#/w/maana/reports?card=abd");
+    await page.waitForSelector(".wr-report");
+    const marks = page.locator(".wr-contact-link");
+    assert.equal(await marks.count(), 4, "4 of this card's 5 open reports came from people who agreed to be contacted");
+    assert.equal(await marks.first().innerText(), "✉ contact ok");
+    assert.equal(await marks.first().getAttribute("href"), "mailto:amina.k@example.com?subject=About%20your%20Maana%20report%20on%20%CA%BFabd");
+    assert.match(await page.locator(".wr-report").first().locator(".wr-contact").innerText(), /contact ok[\s\S]*amina\.k@example\.com/, "the address is shown next to the mark");
+    assert.equal(await page.locator(".wr-report").nth(2).locator(".wr-contact").count(), 0, "a report whose sender did not agree has no mark and no address");
+    assert.doesNotMatch(await page.locator(".wr-report").nth(2).innerText(), /@/);
+    await page.close();
+
+    // ---- the Contributors view, from the list --------------------------------------------------------------------------------
+    page = await open("role=owner", "#/w/maana/reports");
+    await page.waitForSelector(".wr-row");
+    assert.deepEqual(await page.locator(".wr-mode").allInnerTexts(), ["By card", "Contributors"]);
+    assert.equal(await page.locator(".wr-mode.active").innerText(), "By card");
+    await page.getByRole("link", { name: "Contributors" }).click();
+    await page.waitForSelector(".wr-person");
+    assert.match(page.url(), /#\/w\/maana\/reports\?view=contributors/);
+    assert.equal(await page.locator(".wr-mode.active").innerText(), "Contributors");
+    assert.equal(await page.locator(".wr-mode.active").getAttribute("aria-current"), "page");
+    assert.equal(await page.locator(".wr-consent").innerText(), "People who agreed to be contacted. Use this only to reply or invite them to help.");
+    assert.equal(await page.locator(".wr-rule").count(), 0, "the fix-a-card rule belongs to the cards, not to this page");
+    assert.match(await page.locator(".view-head").innerText(), /Nothing is sent from here/);
+    assert.deepEqual(await names(page), ["amina.k@example.com", "layla@example.net", "yusuf.m@example.org", "sam+maana@example.com"],
+      "ranked by accepted + shipped, then total, then the latest report (Sam has 3 reports and none accepted or shipped)");
+    assert.deepEqual(await page.locator(".wr-person-mail").evaluateAll((els) => els.map((e) => e.getAttribute("href"))),
+      ["mailto:amina.k@example.com", "mailto:layla@example.net", "mailto:yusuf.m@example.org", "mailto:sam%2Bmaana@example.com"]);
+    assert.match(await page.locator(".wr-summary").innerText(), /^4 people agreed to be contacted, 10 reports in all\. Ranked by accepted plus shipped reports, then by total\.$/);
+    const first = page.locator(".wr-person").first();
+    assert.match(await first.innerText(), /3 reports[\s\S]*1 shipped, 2 open/);
+    assert.match(await first.innerText(), /Reports from Oct \d+ to Oct \d+/);
+    assert.equal(await first.locator(".wr-cardchip").count(), 1);
+    assert.match(await first.locator(".wr-cardchip").innerText(), /ʿabd[\s\S]*×3/);
+    assert.equal(await first.locator(".wr-cardchip .wr-ar").getAttribute("lang"), "ar");
+    assert.equal(await first.locator(".wr-cardchip .wr-ar").getAttribute("dir"), "rtl");
+    assert.equal(await page.locator(".wr-person").nth(1).locator(".wr-cardchip").count(), 2, "Layla reported two cards");
+    // a card they reported opens on its page, showing every status
+    await page.locator(".wr-person").nth(1).locator(".wr-cardchip", { hasText: "kitāb" }).click();
+    await page.waitForSelector(".wr-report");
+    assert.match(page.url(), /#\/w\/maana\/reports\?card=kitab&tab=all/);
+    assert.equal(await page.locator(".wr-report").count(), 2);
+    assert.equal(await page.locator(".wr-contact-link").count(), 2, "both of this card's reports came from people who agreed");
+
+    // ---- triage shows up there: accept Amina's newest report on abd, then look again ---------------------------------------
+    await page.goto(`${page.url().split("#")[0]}#/w/maana/reports?card=abd`);
+    await page.waitForSelector(".wr-report");
+    await page.locator(".wr-report input[type=checkbox]").first().check();
+    await page.getByRole("button", { name: "Accept" }).click();
+    await page.waitForFunction(() => /1 report accepted/.test(document.getElementById("toasts").innerText));
+    await page.goto(`${page.url().split("#")[0]}#/w/maana/reports?view=contributors`);
+    await page.waitForSelector(".wr-person");
+    assert.match(await page.locator(".wr-person").first().innerText(), /amina\.k@example\.com[\s\S]*3 reports[\s\S]*1 accepted, 1 shipped, 1 open/);
+    // and back to the cards
+    await page.getByRole("link", { name: "By card" }).click();
+    await page.waitForSelector(".wr-row");
+    assert.equal(await page.locator(".wr-mode.active").innerText(), "By card");
+    await page.close();
+
+    // ---- an address that tries to add a mail header is only text, and the link keeps it inside the address -------------------
+    page = await open("role=owner&contact=hostile", "#/w/maana/reports?card=yawm&tab=all");
+    await page.waitForSelector(".wr-report");
+    const hostile = page.locator(".wr-contact-link");
+    assert.equal(await hostile.count(), 1);
+    assert.equal(await hostile.getAttribute("href"), "mailto:x@y.co%3Fbcc%3Da%2540evil.co?subject=About%20your%20Maana%20report%20on%20yawm");
+    assert.equal(await page.locator(".wr-contact-who").innerText(), "x@y.co?bcc=a%40evil.co");
+    await page.goto(`${page.url().split("#")[0]}#/w/maana/reports?view=contributors`);
+    await page.waitForSelector(".wr-person");
+    assert.equal(await page.locator(".wr-person").count(), 5);
+    assert.ok((await page.locator(".wr-person-mail").evaluateAll((els) => els.map((e) => e.getAttribute("href")))).includes("mailto:x@y.co%3Fbcc%3Da%2540evil.co"));
+    await page.close();
+
+    // ---- before the optional-email migration: the reports look as before; Contributors says so, with the command -----------------
+    page = await open("role=owner&reports=nocontact", "#/w/maana/reports?view=contributors");
+    await page.waitForSelector(".wr-setup");
+    assert.match(await page.locator(".wr-setup h2").innerText(), /Contributors are not set up yet/);
+    assert.equal(await page.locator(".wr-setup code").innerText(), CONTACT_SETUP);
+    assert.equal(await page.locator(".error-box").count(), 0, "not an error page");
+    assert.equal(await page.locator(".wr-person").count(), 0);
+    assert.equal(await page.locator(".wr-consent").innerText(), "People who agreed to be contacted. Use this only to reply or invite them to help.");
+    await page.getByRole("link", { name: "By card" }).click();
+    await page.waitForSelector(".wr-row");
+    assert.equal(await page.locator(".wr-setup").count(), 0, "the cards work without it");
+    await page.locator(".wr-row").first().click();
+    await page.waitForSelector(".wr-report");
+    assert.equal(await page.locator(".wr-contact").count(), 0, "no contact marks without the new columns");
+    await page.close();
+    page = await open("role=owner&reports=missing", "#/w/maana/reports?view=contributors");
+    await page.waitForSelector(".wr-setup");
+    assert.equal(await page.locator(".wr-setup code").innerText(), CONTACT_SETUP);
+    await page.close();
+
+    // ---- nobody yet, refused by the database, and who gets the view ---------------------------------------------------------------
+    page = await open("role=owner&reports=empty", "#/w/maana/reports?view=contributors");
+    await page.waitForSelector(".empty");
+    assert.match(await page.locator(".empty").innerText(), /Nobody has agreed to be contacted yet/);
+    assert.equal(await page.locator(".wr-summary").innerText(), "");
+    await page.close();
+    page = await open("role=owner&reports=denied", "#/w/maana/reports?view=contributors");
+    await page.waitForSelector('.notice[role="alert"]');
+    assert.match(await page.locator('.notice[role="alert"]').innerText(), /owners and editors of Maana/);
+    await page.close();
+    page = await open("role=viewer", "#/w/maana/reports?view=contributors");
+    await page.waitForSelector(".notice");
+    assert.equal(await page.locator(".wr-person").count(), 0, "viewers never see an address");
+    assert.match(await page.locator(".notice").innerText(), /owners and editors/);
+    await page.close();
+    page = await open("role=editor", "#/w/maana/reports?view=contributors");
+    await page.waitForSelector(".wr-person");
+    await page.close();
+    page = await open("role=owner", "#/w/mawadda/reports?view=contributors");
+    await page.waitForSelector(".notice");
+    assert.equal(await page.locator(".wr-person").count(), 0, "Mawadda has no word reports");
+    await page.close();
+
+    // ---- a phone: nothing sideways, every row inside the screen ---------------------------------------------------------------------
+    page = await open("role=owner", "#/w/maana/reports?view=contributors", { width: 390, height: 844 });
+    await page.waitForSelector(".wr-person");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "contributors: no sideways scroll");
+    for (const box of await page.locator(".wr-person").evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.left, r.right]; }))) {
+      assert.ok(box[0] >= 0 && box[1] <= 390, `a row fits the phone: ${box}`);
+    }
+    await page.close();
+    page = await open("role=owner&reports=nocontact", "#/w/maana/reports?view=contributors", { width: 390, height: 844 });
+    await page.waitForSelector(".wr-setup");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "contributors setup page: no sideways scroll");
+    await page.close();
+    page = await open("role=owner", "#/w/maana/reports?card=abd", { width: 390, height: 844 });
+    await page.waitForSelector(".wr-report");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "card page with contact marks: no sideways scroll");
+    await page.close();
+
+    assert.deepEqual(errors, []);
+  } finally {
+    await close();
   }
 });
