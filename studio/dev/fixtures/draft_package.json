@@ -101,7 +101,7 @@
      "mime": "image/jpeg",
      "bytes": 205568,
      "sha256": "1e5959a573754a63b35a69ae46818ea3806aeab7de025b44bde85a1aed74fdea",
-     "alt": "Slide 7: mosque icon. Heading: Listen for sabr the next time the imam recites. Text: the word for be patient is one of the 910 words Maana teaches; learned words light up green inside real ayat. Maana teaches the Qur'an's most common words. Pre-order on the App Store. Link in bio."
+     "alt": "Slide 7: mosque icon. Heading: Listen for sabr the next time the imam recites. Text: the word for be patient is one of the 923 words Maana teaches; learned words light up green inside real ayat. Maana teaches the Qur'an's most common words. Pre-order on the App Store. Link in bio."
     }
    ],
    "preset": "instagram_feed"
@@ -186,7 +186,7 @@
      "mime": "image/jpeg",
      "bytes": 222463,
      "sha256": "1dfeae330fed27da50a8f013f17e3986e811751a4b120c37a62e7b9893a8a4b6",
-     "alt": "Slide 7: mosque icon. Heading: Listen for sabr the next time the imam recites. Text: the word for be patient is one of the 910 words Maana teaches; learned words light up green inside real ayat. Maana teaches the Qur'an's most common words. Pre-order on the App Store. Link in bio."
+     "alt": "Slide 7: mosque icon. Heading: Listen for sabr the next time the imam recites. Text: the word for be patient is one of the 923 words Maana teaches; learned words light up green inside real ayat. Maana teaches the Qur'an's most common words. Pre-order on the App Store. Link in bio."
     }
    ],
    "preset": "tiktok_photo"
@@ -601,8 +601,8 @@
      },
      {
       "where": "Slide 7",
-      "quote": "one of the 910 words Maana teaches",
-      "why": "Does facts.py confirm 910, and is \"lights up green inside real ayat\" the approved wording?"
+      "quote": "one of the 923 words Maana teaches",
+      "why": "Does facts.py confirm 923, and is \"lights up green inside real ayat\" the approved wording?"
      }
     ],
     "before_posting": [
@@ -657,7 +657,7 @@
     "before_posting": [
      "Check that the 2:153 ayah image shows the surah:ayah reference and the Saheeh International (QuranEnc.com) credit under it, and that only word 5 (بِٱلصَّبْرِ) is highlighted.",
      "Check that the caption credits \"Quran Foundation\" and the translation line, and that the Pre-order line matches the launch state in decisions.json.",
-     "Confirm the \"910 words\" and \"learned words light up green\" lines against the live rows in facts.md (the post lists word-deck and words-light-up)."
+     "Confirm the \"923 words\" and \"learned words light up green\" lines against the live rows in facts.md (the post lists word-deck and words-light-up)."
     ]
    },
    {
